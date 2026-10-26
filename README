@@ -1,0 +1,79 @@
+# Table Plan
+
+A seating chart planner that runs entirely in a single HTML file. No account, no
+server, no upload — open it in a browser and everything happens on your own
+computer. Drop in a guest list, let it seat everyone, drag people around, and
+export a clean chart for your caterer, venue, or wedding party.
+
+<!-- Swap in a real screenshot or GIF here before publishing. -->
+<!-- ![Table Plan](docs/screenshot.png) -->
+
+## What it does
+
+- **Import a guest list** from a CSV (any RSVP site — Zola, The Knot, a Google
+  Sheet) or a PDF. It auto-detects the name, title, household, and RSVP columns,
+  and filters to just the guests who are attending.
+- **Review and clean** the list in one pass — fix typos inline, remove
+  duplicates, add anyone the file missed.
+- **Lay out the room** with round, banquet, and sweetheart tables, then let
+  **auto-fill** seat everyone at once while keeping households together.
+- **Mark couples** so they're always seated at the same table — optional, and
+  flagged in red if a pair ever ends up apart.
+- **Edit freely** — drag names onto seats, swap guests, add or remove individual
+  chairs, rotate and move tables, rename anything. Full undo (Ctrl/Cmd+Z).
+- **Works on touch** — drag-and-drop works on iPad and phone, not just mouse.
+- **Export** an immaculate PDF (by name or by table), a CSV, or printable place
+  cards.
+- **Save** your whole chart back into the HTML file. Reopen that file any time
+  and you're right where you left off.
+
+## Getting started
+
+1. Download `seating-chart-planner.html`.
+2. Open it in a modern browser — Chrome, Safari, Edge, or Firefox.
+3. Drag in your guest list, or use the included `sample-guest-list.csv` to try it.
+
+That's it. There's nothing to install.
+
+## Files in this repo
+
+| File | What it is |
+|------|------------|
+| `seating-chart-planner.html` | The entire app — this is the product. |
+| `sample-guest-list.csv` | A realistic 87-row RSVP export to test with. |
+| `sample-by-name.pdf` | Example of the exported guest directory. |
+| `sample-by-table.pdf` | Example of the exported table plan. |
+| `demo-script.md` | A video walkthrough script for a demo. |
+
+## Privacy
+
+Your guest list never leaves your device. The app reads your file in the browser
+and keeps everything in memory; nothing is sent anywhere. The one exception is
+importing a **PDF**, which loads a PDF-reading library from a public CDN the
+first time — so the first PDF import needs an internet connection. CSV import,
+and everything else, works fully offline. (Scanned PDFs aren't supported, since
+there's no text to read.)
+
+## Customizing it
+
+Everything you'd want to rebrand lives in two places near the top of the file:
+
+- A `BRAND` block in the script — name, tagline, footer, and an optional support
+  URL that adds a Help button.
+- A `:root` block in the `<style>` — the color palette and fonts.
+
+Change those and the whole app re-skins. Nothing else needs touching.
+
+## Browser support
+
+Works in current versions of Chrome, Safari, Edge, and Firefox, on desktop and
+tablet. PDF export uses the browser's built-in "Save as PDF" in the print
+dialog.
+
+## License
+
+Copyright © 2026. All rights reserved.
+
+<!-- If you want this to be open source instead, replace the line above with a
+     license such as MIT and add a LICENSE file. For a paid product, leave it
+     as-is or use a commercial license. -->
