@@ -1,0 +1,2229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table Plan — seating chart planner</title>
+<script type="application/json" id="saved-state">null</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────
+   TOKENS — the whole look lives here.
+   To re-skin: change these colors/fonts and the BRAND block in the script.
+   ───────────────────────────────────────────── */
+:root{
+  --paper:#f1f0ea;
+  --card:#fbfaf6;
+  --ink:#141b26;
+  --ink-soft:#39424f;
+  --graphite:#767d89;
+  --rule:#d8d5c9;
+  --grid:#e4e1d5;
+  --blue:#1f4fd8;
+  --blue-soft:#e7ecfd;
+  --alert:#a83a1b;
+  --ok:#2f6b3f;
+  --r:3px;
+  --shadow:0 1px 2px rgba(20,27,38,.08), 0 8px 24px rgba(20,27,38,.06);
+  --font-display:'Fraunces',Georgia,serif;
+  --font-ui:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font-ui);
+  font-size:14px;
+  color:var(--ink);
+  background:var(--paper);
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
+input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.hidden{display:none !important}
+
+/* ─────────────────────────────────────────────
+   SHARED CONTROLS
+   ───────────────────────────────────────────── */
+.btn{
+  border:1px solid var(--ink);
+  background:var(--ink);
+  color:var(--card);
+  padding:9px 16px;
+  border-radius:var(--r);
+  font-size:13px;
+  font-weight:500;
+  letter-spacing:.01em;
+  transition:opacity .12s ease, transform .12s ease;
+}
+.btn:hover{opacity:.86}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+.btn.ghost:hover{border-color:var(--ink);opacity:1}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--graphite);padding:6px 8px}
+.btn.quiet:hover{color:var(--ink)}
+.btn.sm{padding:6px 11px;font-size:12px}
+.btn.danger{border-color:var(--alert);color:var(--alert);background:transparent}
+.btn.danger:hover{background:var(--alert);color:var(--card)}
+
+.field{display:block;margin-bottom:14px}
+.field > label{
+  display:block;font-family:var(--font-mono);font-size:10.5px;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--graphite);margin-bottom:6px;
+}
+.input,select.input{
+  width:100%;padding:9px 11px;border:1px solid var(--rule);border-radius:var(--r);
+  background:var(--card);font-size:14px;
+}
+.input:focus{border-color:var(--blue);outline:none}
+select.input{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--graphite) 50%),linear-gradient(135deg,var(--graphite) 50%,transparent 50%);background-position:calc(100% - 16px) 52%,calc(100% - 11px) 52%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.mono{font-family:var(--font-mono)}
+.eyebrow{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--graphite)}
+
+/* ─────────────────────────────────────────────
+   SETUP FLOW (import → review → room)
+   ───────────────────────────────────────────── */
+#setup{
+  height:100%;overflow-y:auto;
+  background:
+    linear-gradient(var(--grid) 1px,transparent 1px) 0 0/28px 28px,
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/28px 28px,
+    var(--paper);
+}
+.setup-inner{max-width:720px;margin:0 auto;padding:56px 24px 80px}
+.brandmark{display:flex;align-items:baseline;gap:12px;margin-bottom:38px}
+.brandmark h1{
+  font-family:var(--font-display);font-weight:600;font-size:30px;letter-spacing:-.015em;
+}
+.brandmark .tag{font-family:var(--font-mono);font-size:11px;color:var(--graphite);letter-spacing:.08em}
+
+.sheet{
+  background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:30px 32px;margin-bottom:20px;
+}
+.sheet h2{font-family:var(--font-display);font-weight:600;font-size:21px;margin-bottom:5px;letter-spacing:-.01em}
+.sheet .sub{color:var(--graphite);font-size:13.5px;line-height:1.55;margin-bottom:22px}
+
+.steps{display:flex;gap:0;margin-bottom:26px;border-bottom:1px solid var(--rule)}
+.step{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--graphite);padding:0 16px 10px 0;position:relative;
+}
+.step.done{color:var(--ink-soft)}
+.step.active{color:var(--ink)}
+.step.active::after{content:'';position:absolute;left:0;right:16px;bottom:-1px;height:2px;background:var(--blue)}
+
+#dropzone{
+  border:1.5px dashed var(--rule);border-radius:var(--r);
+  padding:44px 24px;text-align:center;transition:all .15s ease;cursor:pointer;
+  background:linear-gradient(var(--grid) 1px,transparent 1px) 0 0/24px 24px,linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/24px 24px,var(--card);
+}
+#dropzone:hover{border-color:var(--ink)}
+#dropzone.over{border-color:var(--blue);background:var(--blue-soft);border-style:solid}
+#dropzone .dz-title{font-family:var(--font-display);font-size:18px;margin-bottom:6px}
+#dropzone .dz-sub{color:var(--graphite);font-size:12.5px}
+.or-row{display:flex;align-items:center;gap:14px;margin:22px 0}
+.or-row hr{flex:1;border:none;border-top:1px solid var(--rule)}
+.or-row span{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.12em;color:var(--graphite);text-transform:uppercase}
+.alt-row{display:flex;gap:10px;flex-wrap:wrap}
+
+.map-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+.preview-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+.preview-table th{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--graphite);text-align:left;padding:6px 10px;border-bottom:1px solid var(--rule);white-space:nowrap;
+}
+.preview-table td{padding:6px 10px;border-bottom:1px solid var(--grid);white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.scroll-x{overflow-x:auto;border:1px solid var(--rule);border-radius:var(--r);background:var(--card)}
+
+.pick-list{max-height:340px;overflow-y:auto;border:1px solid var(--rule);border-radius:var(--r);background:var(--card)}
+.pick-row{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--grid)}
+.pick-row:last-child{border-bottom:none}
+.pick-row input[type=checkbox]{accent-color:var(--blue);width:15px;height:15px}
+.pick-row .nm{flex:1;font-size:13.5px}
+.pick-row .nm[contenteditable]{outline:none;border-radius:2px;padding:1px 3px;margin:-1px -3px}
+.pick-row .nm[contenteditable]:focus{background:var(--blue-soft)}
+.pick-row .meta{font-family:var(--font-mono);font-size:11px;color:var(--graphite)}
+.pick-row .x{color:var(--graphite);font-size:15px;line-height:1;padding:2px 5px}
+.pick-row .x:hover{color:var(--alert)}
+.list-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.count-pill{font-family:var(--font-mono);font-size:11.5px;color:var(--ink);background:var(--blue-soft);border:1px solid #cddaf9;padding:3px 9px;border-radius:20px}
+
+.table-builder{display:grid;grid-template-columns:1fr 90px 90px;gap:10px;align-items:end;margin-bottom:10px}
+.capacity-bar{height:6px;background:var(--grid);border-radius:20px;overflow:hidden;margin:14px 0 8px}
+.capacity-bar i{display:block;height:100%;background:var(--blue);transition:width .25s ease}
+.capacity-bar.short i{background:var(--alert)}
+.notice{
+  font-size:12.5px;padding:10px 12px;border-radius:var(--r);border:1px solid var(--rule);
+  background:var(--card);color:var(--ink-soft);line-height:1.5;
+}
+.notice.warn{border-color:#e4c4b4;background:#fbf1ec;color:var(--alert)}
+.row-actions{display:flex;justify-content:space-between;align-items:center;margin-top:26px;gap:12px}
+
+/* ─────────────────────────────────────────────
+   PLANNER
+   ───────────────────────────────────────────── */
+#app{height:100%;display:flex;flex-direction:column}
+.topbar{
+  background:var(--ink);color:var(--card);padding:0 16px;height:52px;
+  display:flex;align-items:center;gap:14px;flex-shrink:0;
+}
+.topbar .name{font-family:var(--font-display);font-size:17px;font-weight:600;letter-spacing:-.01em}
+.topbar .name input{
+  background:transparent;border:none;color:var(--card);font:inherit;width:210px;padding:3px 4px;border-radius:2px;
+}
+.topbar .name input:hover{background:rgba(255,255,255,.08)}
+.topbar .name input:focus{background:rgba(255,255,255,.13);outline:none}
+.tabs{display:flex;gap:2px;margin-left:8px}
+.tab{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:rgba(251,250,246,.55);padding:7px 12px;border-radius:var(--r);
+}
+.tab:hover{color:var(--card)}
+.tab.active{color:var(--ink);background:var(--card)}
+.spacer{flex:1}
+.tb-btn{
+  font-size:12.5px;color:rgba(251,250,246,.8);padding:7px 11px;border-radius:var(--r);
+  border:1px solid rgba(251,250,246,.2);
+}
+.tb-btn:hover{color:var(--ink);background:var(--card);border-color:var(--card)}
+.tb-btn.primary{background:var(--card);color:var(--ink);border-color:var(--card);font-weight:500}
+.tb-btn.primary:hover{opacity:.88}
+
+.body-row{flex:1;display:flex;min-height:0}
+.sidebar{
+  width:272px;flex-shrink:0;border-right:1px solid var(--rule);background:var(--card);
+  display:flex;flex-direction:column;min-height:0;
+}
+.side-head{padding:14px 16px 10px;border-bottom:1px solid var(--rule)}
+.side-head .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.side-head h3{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite)}
+.search{width:100%;padding:7px 10px;border:1px solid var(--rule);border-radius:var(--r);font-size:13px;background:var(--paper)}
+.search:focus{border-color:var(--blue);outline:none}
+.seg{display:flex;margin-top:10px;border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+.seg button{flex:1;padding:5px 0;font-size:11.5px;color:var(--graphite);background:var(--paper)}
+.seg button.on{background:var(--ink);color:var(--card)}
+.guest-scroll{flex:1;overflow-y:auto;padding:8px}
+.chip{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--r);
+  border:1px solid var(--rule);background:var(--paper);margin-bottom:5px;cursor:grab;font-size:13px;
+}
+.chip:hover{border-color:var(--ink)}
+.chip.seated{opacity:.45;background:transparent;border-style:dashed;cursor:pointer}
+.chip.picked{border-color:var(--blue);background:var(--blue-soft);border-width:1.5px}
+.chip .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .at{font-family:var(--font-mono);font-size:10.5px;color:var(--graphite)}
+.chip[draggable=true]:active{cursor:grabbing}
+.side-foot{padding:10px 16px;border-top:1px solid var(--rule);display:flex;gap:8px}
+
+.stage-wrap{flex:1;position:relative;overflow:auto;min-width:0;
+  background:
+    linear-gradient(var(--grid) 1px,transparent 1px) 0 0/28px 28px,
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/28px 28px,
+    var(--paper);
+}
+#stage{position:relative;width:2200px;height:1500px;transform-origin:0 0}
+.zoombar{
+  position:absolute;right:16px;bottom:16px;display:flex;align-items:center;gap:2px;
+  background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);z-index:40;
+}
+.zoombar button{padding:6px 11px;font-family:var(--font-mono);font-size:13px;color:var(--ink-soft)}
+.zoombar button:hover{background:var(--paper)}
+.zoombar .lvl{font-family:var(--font-mono);font-size:11px;color:var(--graphite);padding:0 6px;min-width:44px;text-align:center}
+
+/* table groups */
+.tg{position:absolute;user-select:none}
+.tg .frame{position:relative}
+.tg .plate{
+  position:absolute;inset:0;border:1.5px solid var(--ink);background:var(--card);
+}
+.tg.round .plate{border-radius:50%}
+.tg.sweet .plate{border-radius:2px;border-style:solid}
+.tg .label{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  text-align:center;pointer-events:auto;cursor:move;z-index:2;
+}
+.tg .label .num{font-family:var(--font-display);font-size:17px;font-weight:600;line-height:1.1}
+.tg .label .cnt{font-family:var(--font-mono);font-size:10px;color:var(--graphite);letter-spacing:.05em}
+.tg .label input{
+  font-family:var(--font-display);font-size:16px;font-weight:600;text-align:center;
+  border:none;background:transparent;width:96px;border-radius:2px;
+}
+.tg .label input:focus{background:var(--blue-soft);outline:none}
+.tg.selected .plate{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft)}
+
+.seat{
+  position:absolute;border:1px solid var(--rule);background:var(--card);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;text-align:center;
+  font-size:8.5px;line-height:1.12;overflow:hidden;padding:2px;cursor:pointer;
+  transition:background .12s ease,border-color .12s ease,color .12s ease;
+}
+.seat.filled{background:var(--ink);border-color:var(--ink);color:var(--card);cursor:grab;font-weight:500}
+.seat.drop{border-color:var(--blue);background:var(--blue-soft);border-width:2px;color:var(--ink)}
+.seat.hi{box-shadow:0 0 0 3px rgba(31,79,216,.35)}
+.seat.head{border-style:dashed}
+.tg.rot90 .seat span,.tg.rot90 .label{}
+
+/* popover */
+.pop{
+  position:fixed;z-index:200;background:var(--card);border:1px solid var(--ink);border-radius:var(--r);
+  box-shadow:0 10px 40px rgba(20,27,38,.22);width:250px;overflow:hidden;
+}
+.pop .pop-head{padding:11px 13px;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:8px}
+.pop .pop-head .t{flex:1;font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pop .pop-head .s{font-family:var(--font-mono);font-size:10px;color:var(--graphite);letter-spacing:.08em;text-transform:uppercase}
+.pop .pop-body{padding:7px}
+.pop .pop-body input.search{margin-bottom:6px}
+.pop-item{display:block;width:100%;text-align:left;padding:7px 9px;border-radius:2px;font-size:13px}
+.pop-item:hover{background:var(--blue-soft)}
+.pop-item.warn{color:var(--alert)}
+.pop-list{max-height:210px;overflow-y:auto}
+.pop-empty{padding:12px 10px;font-size:12.5px;color:var(--graphite);text-align:center}
+
+/* list views */
+.list-view{flex:1;overflow-y:auto;padding:28px 32px;background:var(--paper)}
+.list-inner{max-width:900px;margin:0 auto}
+.list-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;gap:12px}
+.list-head h2{font-family:var(--font-display);font-size:22px;font-weight:600}
+.dl{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--rule);border-radius:var(--r)}
+.dl th{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--graphite);text-align:left;padding:9px 14px;border-bottom:1px solid var(--rule)}
+.dl td{padding:8px 14px;border-bottom:1px solid var(--grid);font-size:13.5px}
+.dl tr:last-child td{border-bottom:none}
+.dl td.t{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft)}
+.dl td.u{color:var(--alert);font-family:var(--font-mono);font-size:12px}
+.tblock{break-inside:avoid;margin-bottom:22px}
+.tblock h3{font-family:var(--font-display);font-size:16px;font-weight:600;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;align-items:baseline}
+.tblock h3 em{font-family:var(--font-mono);font-size:10.5px;font-style:normal;color:var(--graphite);letter-spacing:.06em}
+.tblock ol{list-style:none;columns:2;column-gap:26px}
+.tblock li{font-size:13.5px;padding:3px 0;break-inside:avoid}
+.tblock li::before{content:counter(li) '. ';counter-increment:li;font-family:var(--font-mono);font-size:11px;color:var(--graphite)}
+.tblock ol{counter-reset:li}
+
+.statusbar{
+  height:34px;flex-shrink:0;border-top:1px solid var(--rule);background:var(--card);
+  display:flex;align-items:center;gap:18px;padding:0 16px;font-family:var(--font-mono);font-size:11px;color:var(--graphite);
+}
+.statusbar b{color:var(--ink);font-weight:500}
+.statusbar .dot{width:5px;height:5px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:5px}
+.statusbar .dot.dirty{background:var(--alert)}
+
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);
+  background:var(--ink);color:var(--card);padding:10px 18px;border-radius:var(--r);font-size:13px;
+  opacity:0;pointer-events:none;transition:all .2s ease;z-index:500;box-shadow:var(--shadow);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.modal-bg{position:fixed;inset:0;background:rgba(20,27,38,.4);z-index:300;display:flex;align-items:center;justify-content:center;padding:24px}
+.modal{background:var(--card);border-radius:var(--r);box-shadow:0 20px 60px rgba(20,27,38,.3);width:100%;max-width:440px;padding:26px 28px}
+.modal h2{font-family:var(--font-display);font-size:20px;font-weight:600;margin-bottom:6px}
+.modal p{font-size:13.5px;color:var(--ink-soft);line-height:1.55;margin-bottom:18px}
+
+@media (max-width:820px){
+  .sidebar{width:210px}
+  .setup-inner{padding:32px 16px 60px}
+  .map-grid{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+
+/* ─────────────────────────────────────────────
+   PRINT
+   ───────────────────────────────────────────── */
+@media print{
+  @page{margin:14mm}
+  body{overflow:visible;background:#fff}
+  .topbar,.sidebar,.statusbar,.zoombar,.pop,.toast,.no-print{display:none !important}
+  #app,.body-row,.list-view,.stage-wrap{display:block;height:auto;overflow:visible;background:#fff}
+  .stage-wrap{background-image:none}
+  #stage{transform:scale(.6) !important;transform-origin:0 0 !important;width:auto;height:1000px}
+  .tblock ol{columns:2}
+  .dl{page-break-inside:auto}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ SETUP ══════════════════ -->
+<div id="setup">
+ <div class="setup-inner">
+  <div class="brandmark">
+    <h1>Table Plan</h1>
+    <span class="tag">SEATING CHART PLANNER</span>
+  </div>
+
+  <div class="steps">
+    <div class="step active" data-step="import">Guest list</div>
+    <div class="step" data-step="map">Columns</div>
+    <div class="step" data-step="review">Review</div>
+    <div class="step" data-step="room">Room</div>
+  </div>
+
+  <!-- STEP: IMPORT -->
+  <section class="sheet" id="pane-import">
+    <h2>Start with your guest list</h2>
+    <p class="sub">Drop in the export from your RSVP site, a printed list as a PDF, or type names yourself. Nothing is uploaded anywhere — the file is read in your browser.</p>
+    <div id="dropzone">
+      <div class="dz-title">Drop a CSV or PDF here</div>
+      <div class="dz-sub">or click to choose a file &nbsp;·&nbsp; .csv .tsv .txt .pdf</div>
+      <input type="file" id="fileInput" accept=".csv,.tsv,.txt,.pdf" style="display:none">
+    </div>
+    <div class="or-row"><hr><span>or</span><hr></div>
+    <div class="alt-row">
+      <button class="btn ghost" id="btnPaste">Paste a list of names</button>
+      <button class="btn ghost" id="btnBlank">Start with an empty chart</button>
+    </div>
+    <div id="pasteWrap" class="hidden" style="margin-top:18px">
+      <div class="field">
+        <label>One name per line</label>
+        <textarea class="input" id="pasteBox" rows="8" placeholder="Ada Lovelace&#10;Grace Hopper&#10;Katherine Johnson"></textarea>
+      </div>
+      <button class="btn" id="btnPasteGo">Use these names</button>
+    </div>
+    <div id="importErr" class="notice warn hidden" style="margin-top:16px"></div>
+    <div id="mergeBar" class="hidden" style="margin-top:16px"><button class="btn quiet" id="btnCancelMerge">← Back to the plan without changes</button></div>
+  </section>
+
+  <!-- STEP: MAP -->
+  <section class="sheet hidden" id="pane-map">
+    <h2>Which columns hold the names?</h2>
+    <p class="sub">Here are the first rows of your file. Tell me where the names live and I'll pull the rest.</p>
+    <div class="scroll-x"><table class="preview-table" id="csvPreview"></table></div>
+    <div style="margin-top:22px" class="map-grid">
+      <div class="field">
+        <label>Name column</label>
+        <select class="input" id="colName"></select>
+      </div>
+      <div class="field">
+        <label>Last name column <span style="text-transform:none;letter-spacing:0">(if split)</span></label>
+        <select class="input" id="colLast"></select>
+      </div>
+      <div class="field">
+        <label>Title column</label>
+        <select class="input" id="colTitle"></select>
+      </div>
+      <div class="field">
+        <label>Party or household</label>
+        <select class="input" id="colParty"></select>
+      </div>
+    </div>
+    <div class="map-grid" style="align-items:end">
+      <div class="field">
+        <label>Only include rows where</label>
+        <select class="input" id="colFilter"></select>
+      </div>
+      <div class="field">
+        <label>equals</label>
+        <select class="input" id="valFilter"></select>
+      </div>
+    </div>
+    <div class="notice" id="mapCount"></div>
+    <div class="row-actions">
+      <button class="btn quiet" data-back="import">← Choose another file</button>
+      <button class="btn" id="btnMapGo">Review guests →</button>
+    </div>
+  </section>
+
+  <!-- STEP: REVIEW -->
+  <section class="sheet hidden" id="pane-review">
+    <h2>Check the guest list</h2>
+    <p class="sub">Untick anyone who isn't coming, click a name to fix a typo, and add anyone the file missed.</p>
+    <div class="list-toolbar">
+      <span class="count-pill" id="reviewCount">0 selected</span>
+      <button class="btn ghost sm" id="btnAll">Select all</button>
+      <button class="btn ghost sm" id="btnNone">Select none</button>
+      <button class="btn ghost sm" id="btnDedupe">Remove duplicates</button>
+      <span class="spacer" style="flex:1"></span>
+      <input class="search" id="reviewSearch" placeholder="Filter names" style="width:150px">
+    </div>
+    <div class="pick-list" id="reviewList"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <input class="input" id="addGuestBox" placeholder="Add a name" style="flex:1">
+      <button class="btn ghost" id="btnAddGuest">Add</button>
+    </div>
+    <div class="row-actions">
+      <button class="btn quiet" data-back="import">← Start over</button>
+      <button class="btn" id="btnReviewGo">Set up the room →</button>
+    </div>
+  </section>
+
+  <!-- STEP: ROOM -->
+  <section class="sheet hidden" id="pane-room">
+    <h2>Lay out the room</h2>
+    <p class="sub">Rough numbers are fine. You can add, delete, resize and rearrange tables once you're in the plan.</p>
+    <div id="tableRows"></div>
+    <button class="btn ghost sm" id="btnAddRow">+ Another table type</button>
+    <div class="capacity-bar" id="capBar"><i style="width:0%"></i></div>
+    <div class="notice" id="capNote"></div>
+    <div class="field" style="margin-top:22px">
+      <label>Event name</label>
+      <input class="input" id="eventName" placeholder="Untitled event">
+    </div>
+    <div class="row-actions">
+      <button class="btn quiet" data-back="review">← Back to guests</button>
+      <button class="btn" id="btnRoomGo">Open the plan →</button>
+    </div>
+  </section>
+
+  <p id="brandFoot" style="text-align:center;font-family:var(--font-mono);font-size:10.5px;color:var(--graphite);letter-spacing:.06em;margin-top:8px">
+    EVERYTHING RUNS IN THIS FILE · NO ACCOUNT · NO UPLOAD
+  </p>
+ </div>
+</div>
+
+<!-- ══════════════════ PLANNER ══════════════════ -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <span class="name"><input id="eventNameTop" value="Untitled event" spellcheck="false"></span>
+    <div class="tabs">
+      <button class="tab active" data-view="plan">Plan</button>
+      <button class="tab" data-view="alpha">By name</button>
+      <button class="tab" data-view="bytable">By table</button>
+    </div>
+    <span class="spacer"></span>
+    <button class="tb-btn" id="btnCouples" title="When on, seating one partner brings the other">\u2665 Couples</button>
+    <button class="tb-btn" id="btnUndo" title="Undo (Ctrl+Z)">Undo</button>
+    <button class="tb-btn" id="btnAddTable">Add table</button>
+    <button class="tb-btn" id="btnAutoSeat">Auto-fill</button>
+    <button class="tb-btn" id="btnExport">Export</button>
+    <button class="tb-btn" id="btnPrint">Print</button>
+    <button class="tb-btn primary" id="btnSave">Save chart</button>
+  </div>
+
+  <div class="body-row">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-head">
+        <div class="row">
+          <h3>Guests</h3>
+          <span class="mono" id="guestTally" style="font-size:11px;color:var(--graphite)"></span>
+        </div>
+        <input class="search" id="guestSearch" placeholder="Search guests">
+        <div class="seg">
+          <button data-filter="all" class="on">All</button>
+          <button data-filter="unseated">Unseated</button>
+          <button data-filter="seated">Seated</button>
+        </div>
+      </div>
+      <div class="guest-scroll" id="guestScroll"></div>
+      <div class="side-foot">
+        <input class="search" id="newGuest" placeholder="Add a guest" style="flex:1">
+        <button class="btn ghost sm" id="btnNewGuest">Add</button>
+      </div>
+    </aside>
+
+    <div class="stage-wrap" id="stageWrap">
+      <div id="stage"></div>
+      <div class="zoombar no-print">
+        <button id="zOut">−</button>
+        <span class="lvl" id="zLvl">100%</span>
+        <button id="zIn">+</button>
+        <button id="zFit" title="Fit to window" style="font-size:11px">FIT</button>
+      </div>
+    </div>
+
+    <div class="list-view hidden" id="view-alpha">
+      <div class="list-inner">
+        <div class="list-head">
+          <h2>Guests by name</h2>
+<div style="display:flex;gap:8px" class="no-print"><button class="btn ghost sm" id="btnCsvAlpha">CSV</button><button class="btn sm" id="btnPdfAlpha">Download PDF</button></div>
+        </div>
+        <table class="dl" id="alphaTable"></table>
+      </div>
+    </div>
+
+    <div class="list-view hidden" id="view-bytable">
+      <div class="list-inner">
+        <div class="list-head">
+          <h2>Guests by table</h2>
+<div style="display:flex;gap:8px" class="no-print"><button class="btn ghost sm" id="btnCsvTable">CSV</button><button class="btn sm" id="btnPdfTable">Download PDF</button></div>
+        </div>
+        <div id="byTableWrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="dot" id="saveDot"></span><span id="saveState">Saved</span></span>
+    <span><b id="stSeated">0</b> seated</span>
+    <span><b id="stUnseated">0</b> unseated</span>
+    <span><b id="stSeats">0</b> seats across <b id="stTables">0</b> tables</span>
+    <span class="spacer" style="flex:1"></span>
+    <span id="stApart" class="hidden" style="color:var(--alert)"></span>
+    <span id="stHint">Drag a name onto a seat, or click a seat to choose</span>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="popRoot"></div>
+<div id="modalRoot"></div>
+<script>
+/* ═══════════════════════════════════════════════════════════
+   Table Plan — single-file seating chart planner
+   State lives in memory; "Save chart" bakes it back into a copy
+   of this file so the download is both the app and the document.
+   ═══════════════════════════════════════════════════════════ */
+const PRISTINE = document.documentElement.outerHTML;
+
+/* ══════════════════ CUSTOMIZE ══════════════════
+   Resellers: change these four lines plus the :root colors
+   in the <style> block at the top. Nothing else needs touching. */
+const BRAND = {
+  name: 'Table Plan',
+  tagline: 'SEATING CHART PLANNER',
+  footer: 'EVERYTHING RUNS IN THIS FILE · NO ACCOUNT · NO UPLOAD',
+  supportUrl: ''   // e.g. 'mailto:hello@yourstudio.com' — adds a Help button when set
+};
+function applyBrand(){
+  document.title = BRAND.name + ' — seating chart planner';
+  $('.brandmark h1').textContent = BRAND.name;
+  $('.brandmark .tag').textContent = BRAND.tagline;
+  $('#brandFoot').textContent = BRAND.footer;
+  if (BRAND.supportUrl){
+    const a = document.createElement('a');
+    a.className = 'tb-btn'; a.style.textDecoration = 'none';
+    a.href = BRAND.supportUrl; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Help';
+    $('.topbar').insertBefore(a, $('#btnSave'));
+  }
+}
+/* Bump state.version and transform old saves here when the schema changes,
+   so charts saved from v1 keep opening in future releases. */
+function migrate(s){ return s; }
+
+
+const $  = (s,r) => (r||document).querySelector(s);
+const $$ = (s,r) => Array.from((r||document).querySelectorAll(s));
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let uid = 0;
+const newId = p => p + '_' + (Date.now().toString(36).slice(-4)) + (++uid).toString(36);
+
+let state = {
+  version: 1,
+  eventName: 'Untitled event',
+  guests: [],                 // {id,name,party}
+  tables: [],                 // {id,label,type,seats,x,y,rot}
+  assignments: {},            // "tableId|seatIndex" -> guestId
+  keepCouples: true,          // when on, seating one partner brings the other
+  zoom: 1
+};
+let dirty = false;
+let cascading = false;
+let undoStack = [], suppressSnap = false;
+function snapshot(){
+  undoStack.push(JSON.stringify({guests: state.guests, tables: state.tables, assignments: state.assignments}));
+  if (undoStack.length > 60) undoStack.shift();
+}
+function undo(){
+  if (!undoStack.length){ toast('Nothing to undo'); return; }
+  const s = JSON.parse(undoStack.pop());
+  state.guests = s.guests; state.tables = s.tables; state.assignments = s.assignments;
+  pickedGuest = null;
+  renderPlan(); afterChange();
+  toast('Undone');
+}
+
+/* ── tiny helpers ─────────────────────────────────────── */
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function markDirty(){
+  dirty = true;
+  $('#saveDot').classList.add('dirty');
+  $('#saveState').textContent = 'Unsaved changes';
+  autoStash();
+}
+function markClean(){
+  dirty = false;
+  $('#saveDot').classList.remove('dirty');
+  $('#saveState').textContent = 'Saved';
+}
+function sortKey(name){
+  const parts = String(name).replace(/^(Mr\.?|Mrs\.?|Ms\.?|Miss|Dr\.?|Rabbi|Prof\.?|Rev\.?|Sir|Lady)\s+/i,'').trim().split(/\s+/);
+  const last = parts.length > 1 ? parts[parts.length-1] : parts[0];
+  return (last + ' ' + parts.join(' ')).toLowerCase();
+}
+function byName(a,b){ return sortKey(a.name).localeCompare(sortKey(b.name)); }
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], {type: mime || 'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+function csvCell(v){
+  v = String(v==null?'':v);
+  return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+}
+/* best-effort autosave; harmless if storage is blocked */
+function autoStash(){
+  try { localStorage.setItem('tableplan.autosave', JSON.stringify(state)); } catch(e){}
+}
+function readStash(){
+  try { const s = localStorage.getItem('tableplan.autosave'); return s ? JSON.parse(s) : null; } catch(e){ return null; }
+}
+
+/* ── CSV / TSV parser (RFC4180-ish, no dependency) ────── */
+function parseDelimited(text){
+  text = text.replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n');
+  const firstLine = text.slice(0, text.indexOf('\n') === -1 ? text.length : text.indexOf('\n'));
+  const delim = (firstLine.split('\t').length > firstLine.split(',').length) ? '\t' : ',';
+  const rows = []; let row = []; let cell = ''; let q = false;
+  for (let i=0;i<text.length;i++){
+    const c = text[i];
+    if (q){
+      if (c === '"'){ if (text[i+1] === '"'){ cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else {
+      if (c === '"') q = true;
+      else if (c === delim){ row.push(cell); cell = ''; }
+      else if (c === '\n'){ row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += c;
+    }
+  }
+  if (cell.length || row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(v => String(v).trim() !== ''));
+}
+
+/* ── PDF text extraction via pdf.js, loaded on demand ─── */
+let pdfLibPromise = null;
+function loadPdfLib(){
+  if (pdfLibPromise) return pdfLibPromise;
+  pdfLibPromise = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => {
+      const lib = window.pdfjsLib;
+      if (!lib) return rej(new Error('no lib'));
+      lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      res(lib);
+    };
+    s.onerror = () => rej(new Error('offline'));
+    document.head.appendChild(s);
+  });
+  return pdfLibPromise;
+}
+async function pdfToLines(arrayBuffer){
+  const lib = await loadPdfLib();
+  const doc = await lib.getDocument({data: arrayBuffer}).promise;
+  const lines = [];
+  for (let p=1; p<=doc.numPages; p++){
+    const page = await doc.getPage(p);
+    const content = await page.getTextContent();
+    const buckets = new Map();
+    content.items.forEach(it => {
+      if (!it.str || !it.str.trim()) return;
+      const y = Math.round(it.transform[5] / 3);           // group by row band
+      const x = it.transform[4];
+      if (!buckets.has(y)) buckets.set(y, []);
+      buckets.get(y).push({x, s: it.str});
+    });
+    Array.from(buckets.keys()).sort((a,b)=>b-a).forEach(y => {
+      const line = buckets.get(y).sort((a,b)=>a.x-b.x).map(o=>o.s).join(' ')
+                   .replace(/\s{2,}/g,'  ').trim();
+      if (line) lines.push(line);
+    });
+  }
+  return lines;
+}
+/* split a PDF line into likely names; drop headers, page numbers, columns of counts */
+function looksLikeName(s){
+  s = s.trim();
+  if (s.length < 3 || s.length > 60) return false;
+  if (/^\d+$/.test(s)) return false;
+  if (/^(page|table|guest|name|list|rsvp|total|seat)\b/i.test(s) && s.split(/\s+/).length < 3) return false;
+  const words = s.split(/\s+/);
+  if (words.length > 6) return false;
+  const letters = (s.match(/[A-Za-zÀ-ÿ'’\-]/g) || []).length;
+  return letters / s.length > 0.6;
+}
+function linesToNames(lines){
+  const out = [];
+  lines.forEach(l => {
+    l.split(/\s{2,}|\s*[|;]\s*|\s+\u2022\s+/).forEach(part => {
+      const p = part.replace(/^\s*[-•\d.)]+\s*/,'').replace(/\s*\(\d+\)\s*$/,'').trim();
+      if (looksLikeName(p)) out.push(p);
+    });
+  });
+  return out;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SETUP FLOW
+   ═══════════════════════════════════════════════════════════ */
+let csvRows = null;             // raw parsed rows incl. header
+let reviewItems = [];           // {name, party, on}
+
+function goStep(step){
+  ['import','map','review','room'].forEach(s => {
+    $('#pane-'+s).classList.toggle('hidden', s !== step);
+  });
+  const order = ['import','map','review','room'];
+  const idx = order.indexOf(step);
+  $$('.step').forEach(el => {
+    const i = order.indexOf(el.dataset.step);
+    el.classList.toggle('active', i === idx);
+    el.classList.toggle('done', i < idx);
+  });
+  $('#setup').scrollTop = 0;
+}
+function importError(msg){
+  const el = $('#importErr'); el.textContent = msg; el.classList.remove('hidden');
+}
+
+/* --- file intake --- */
+const dz = $('#dropzone');
+dz.addEventListener('click', () => $('#fileInput').click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+$('#fileInput').addEventListener('click', e => e.stopPropagation());
+$('#fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+async function handleFile(file){
+  $('#importErr').classList.add('hidden');
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (['xlsx','xls','numbers','ods'].includes(ext)){
+    importError('That is a spreadsheet file, which browsers cannot read directly. In Excel, Numbers or Sheets use File \u2192 Download / Save As \u2192 CSV, then drop that file here.');
+    return;
+  }
+  try {
+    if (ext === 'pdf'){
+      dz.querySelector('.dz-title').textContent = 'Reading the PDF…';
+      const buf = await file.arrayBuffer();
+      let names = [];
+      try {
+        names = linesToNames(await pdfToLines(buf));
+      } catch(err){
+        importError('That PDF could not be read. Reading PDFs needs an internet connection the first time. A CSV always works offline.');
+        dz.querySelector('.dz-title').textContent = 'Drop a CSV or PDF here';
+        return;
+      }
+      dz.querySelector('.dz-title').textContent = 'Drop a CSV or PDF here';
+      if (!names.length){ importError('No names found in that PDF. It may be a scan rather than text. Try a CSV, or paste the names in.'); return; }
+      reviewItems = names.map(n => ({name: n, party: '', on: true}));
+      renderReview(); goStep('review');
+      toast(names.length + ' names found');
+    } else {
+      const text = await file.text();
+      const rows = parseDelimited(text);
+      if (!rows.length){ importError('That file came through empty.'); return; }
+      if (rows[0].length === 1){                        // plain text list
+        if (/^(name|names|guest|guests|guest name|full name)$/i.test((rows[0][0]||'').trim())) rows.shift();
+        reviewItems = rows.map(r => ({name: r[0].trim(), party: '', on: true})).filter(i => i.name);
+        renderReview(); goStep('review'); return;
+      }
+      csvRows = rows;
+      buildMapper(); goStep('map');
+    }
+  } catch(err){
+    importError('Could not read that file: ' + err.message);
+  }
+}
+
+/* --- paste / blank --- */
+$('#btnPaste').addEventListener('click', () => $('#pasteWrap').classList.toggle('hidden'));
+$('#btnPasteGo').addEventListener('click', () => {
+  const names = $('#pasteBox').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!names.length){ importError('Add at least one name.'); return; }
+  reviewItems = names.map(n => ({name: n, party: '', on: true}));
+  renderReview(); goStep('review');
+});
+$('#btnBlank').addEventListener('click', () => { reviewItems = []; renderReview(); goStep('review'); });
+$$('[data-back]').forEach(b => b.addEventListener('click', () => goStep(b.dataset.back)));
+
+/* --- column mapping --- */
+function buildMapper(){
+  const head = csvRows[0];
+  const body = csvRows.slice(1);
+  const tbl = $('#csvPreview');
+  tbl.innerHTML = '<tr>' + head.map(h => '<th>' + esc(h || '—') + '</th>').join('') + '</tr>' +
+    body.slice(0,4).map(r => '<tr>' + head.map((_,i) => '<td>' + esc(r[i]||'') + '</td>').join('') + '</tr>').join('');
+
+  const opts = (blank) => (blank ? '<option value="-1">' + blank + '</option>' : '') +
+    head.map((h,i) => '<option value="' + i + '">' + esc(h || ('Column ' + (i+1))) + '</option>').join('');
+  $('#colName').innerHTML  = opts(null);
+  $('#colLast').innerHTML  = opts('— not split —');
+  $('#colTitle').innerHTML = opts('— none —');
+  $('#colParty').innerHTML = opts('— none —');
+  $('#colFilter').innerHTML= opts('— include every row —');
+
+  const find = (...keys) => head.findIndex(h => keys.some(k => String(h).trim().toLowerCase() === k));
+  const loose = (...keys) => head.findIndex(h => keys.some(k => String(h).toLowerCase().includes(k)));
+  const iFirst = find('first name','first','given name','firstname');
+  const iLast  = find('last name','last','surname','lastname');
+  const iFull  = find('name','full name','guest','guest name','fullname');
+  if (iFirst >= 0 && iLast >= 0){ $('#colName').value = iFirst; $('#colLast').value = iLast; }
+  else if (iFull >= 0) $('#colName').value = iFull;
+  const iTitle = find('title','prefix','salutation'); if (iTitle >= 0) $('#colTitle').value = iTitle;
+  const iParty = loose('party','household','group','invite'); if (iParty >= 0) $('#colParty').value = iParty;
+  let iRsvp = loose('rsvp','attending','status','response','coming');
+  if (iRsvp < 0) iRsvp = guessRsvpColumn(head, body);
+  if (iRsvp >= 0) $('#colFilter').value = iRsvp;
+
+  refreshFilterValues();
+  $('#colFilter').onchange = refreshFilterValues;
+  [$('#colName'),$('#colLast'),$('#colTitle'),$('#colParty'),$('#valFilter')].forEach(el => el.onchange = updateMapCount);
+}
+/* a column of Attending / Declined / Yes / No is almost certainly the RSVP */
+const RSVP_WORDS = /^(attending|not attending|declined|decline|accepted|accept|yes|no|y|n|coming|not coming|regrets|confirmed|pending|awaiting|invited|maybe)$/i;
+function guessRsvpColumn(head, body){
+  let best = -1, bestScore = 0;
+  head.forEach((_, i) => {
+    const vals = body.map(r => (r[i]||'').trim()).filter(Boolean);
+    if (vals.length < 2) return;
+    const uniq = new Set(vals.map(v => v.toLowerCase()));
+    if (uniq.size > 6) return;
+    const hits = vals.filter(v => RSVP_WORDS.test(v)).length / vals.length;
+    if (hits >= 0.6 && hits > bestScore){ bestScore = hits; best = i; }
+  });
+  return best;
+}
+function refreshFilterValues(){
+  const ci = +$('#colFilter').value;
+  const sel = $('#valFilter');
+  if (ci < 0){ sel.innerHTML = '<option>—</option>'; sel.disabled = true; updateMapCount(); return; }
+  sel.disabled = false;
+  const vals = Array.from(new Set(csvRows.slice(1).map(r => (r[ci]||'').trim()).filter(Boolean))).sort();
+  sel.innerHTML = vals.map(v => '<option>' + esc(v) + '</option>').join('') || '<option>—</option>';
+  const pref = vals.find(v => /^(attending|yes|accepted|confirmed|coming|y)$/i.test(v));
+  if (pref) sel.value = pref;
+  updateMapCount();
+}
+function mappedGuests(){
+  const head = csvRows[0], body = csvRows.slice(1);
+  const ni = +$('#colName').value, li = +$('#colLast').value, ti = +$('#colTitle').value,
+        pi = +$('#colParty').value, fi = +$('#colFilter').value, fv = $('#valFilter').value;
+  const out = [];
+  body.forEach(r => {
+    if (fi >= 0 && (r[fi]||'').trim().toLowerCase() !== String(fv).trim().toLowerCase()) return;
+    let name = (r[ni]||'').trim();
+    if (li >= 0) name = (name + ' ' + (r[li]||'').trim()).trim();
+    if (ti >= 0 && (r[ti]||'').trim()) name = (r[ti].trim() + ' ' + name).trim();
+    name = name.replace(/\s+/g,' ');
+    if (!name) return;
+    out.push({name, party: pi >= 0 ? (r[pi]||'').trim() : '', on: true});
+  });
+  return out;
+}
+function updateMapCount(){
+  const n = mappedGuests().length;
+  $('#mapCount').textContent = n + (n === 1 ? ' guest' : ' guests') + ' will be brought across.';
+  $('#mapCount').classList.toggle('warn', n === 0);
+}
+$('#btnMapGo').addEventListener('click', () => {
+  reviewItems = mappedGuests();
+  if (!reviewItems.length){ toast('No rows matched — check the columns'); return; }
+  renderReview(); goStep('review');
+});
+
+/* --- review --- */
+function renderReview(){
+  const q = ($('#reviewSearch').value || '').toLowerCase();
+  const list = $('#reviewList');
+  const rows = reviewItems.map((it,i) => ({it,i})).filter(({it}) => !q || it.name.toLowerCase().includes(q));
+  list.innerHTML = rows.length ? rows.map(({it,i}) =>
+    '<div class="pick-row" data-i="' + i + '">' +
+      '<input type="checkbox" ' + (it.on ? 'checked' : '') + '>' +
+      '<span class="nm" contenteditable="true" spellcheck="false">' + esc(it.name) + '</span>' +
+      (it.party ? '<span class="meta">' + esc(it.party) + '</span>' : '') +
+      '<button class="x" title="Remove">×</button>' +
+    '</div>').join('')
+    : '<div class="pop-empty">No names yet. Add one below.</div>';
+  const n = reviewItems.filter(i => i.on).length;
+  $('#reviewCount').textContent = n + (n === 1 ? ' guest' : ' guests');
+}
+$('#reviewList').addEventListener('change', e => {
+  if (e.target.type !== 'checkbox') return;
+  reviewItems[+e.target.closest('.pick-row').dataset.i].on = e.target.checked;
+  const n = reviewItems.filter(i => i.on).length;
+  $('#reviewCount').textContent = n + (n === 1 ? ' guest' : ' guests');
+});
+$('#reviewList').addEventListener('click', e => {
+  if (!e.target.classList.contains('x')) return;
+  reviewItems.splice(+e.target.closest('.pick-row').dataset.i, 1);
+  renderReview();
+});
+$('#reviewList').addEventListener('blur', e => {
+  if (!e.target.classList || !e.target.classList.contains('nm')) return;
+  reviewItems[+e.target.closest('.pick-row').dataset.i].name = e.target.textContent.trim();
+}, true);
+$('#reviewSearch').addEventListener('input', renderReview);
+$('#btnAll').addEventListener('click', () => { reviewItems.forEach(i => i.on = true); renderReview(); });
+$('#btnNone').addEventListener('click', () => { reviewItems.forEach(i => i.on = false); renderReview(); });
+$('#btnDedupe').addEventListener('click', () => {
+  const seen = new Set(); const before = reviewItems.length;
+  reviewItems = reviewItems.filter(i => {
+    const k = i.name.toLowerCase().replace(/\s+/g,' ').trim();
+    if (seen.has(k)) return false; seen.add(k); return true;
+  });
+  renderReview();
+  const gone = before - reviewItems.length;
+  toast(gone ? gone + (gone === 1 ? ' duplicate removed' : ' duplicates removed') : 'No duplicates found');
+});
+function addReviewName(){
+  const v = $('#addGuestBox').value.trim();
+  if (!v) return;
+  v.split(/,\s*/).forEach(n => n.trim() && reviewItems.push({name: n.trim(), party: '', on: true}));
+  $('#addGuestBox').value = ''; renderReview();
+}
+$('#btnAddGuest').addEventListener('click', addReviewName);
+$('#addGuestBox').addEventListener('keydown', e => { if (e.key === 'Enter') addReviewName(); });
+$('#btnReviewGo').addEventListener('click', () => {
+  if (mergeMode){ finishMerge(); return; }
+  state.guests = reviewItems.filter(i => i.on).map(i => ({id: newId('g'), name: i.name, party: i.party || ''}));
+  buildRoomStep(); goStep('room');
+});
+
+/* --- room builder --- */
+const TYPE_DEFAULTS = {round: 10, banquet: 18, sweetheart: 2};
+let roomRows = [];
+function buildRoomStep(){
+  if (!roomRows.length){
+    const n = state.guests.length;
+    roomRows = [
+      {type: 'round',      count: Math.max(1, Math.ceil(Math.max(n,10) / 10)), seats: 10},
+      {type: 'sweetheart', count: 0, seats: 2}
+    ];
+  }
+  renderRoomRows();
+}
+function renderRoomRows(){
+  $('#tableRows').innerHTML =
+    '<div class="table-builder" style="margin-bottom:4px">' +
+      '<div class="eyebrow">Table type</div><div class="eyebrow">How many</div><div class="eyebrow">Seats each</div>' +
+    '</div>' +
+    roomRows.map((r,i) =>
+      '<div class="table-builder" data-i="' + i + '">' +
+        '<select class="input rt-type">' +
+          '<option value="round"' + (r.type==='round'?' selected':'') + '>Round table</option>' +
+          '<option value="banquet"' + (r.type==='banquet'?' selected':'') + '>Long banquet table</option>' +
+          '<option value="sweetheart"' + (r.type==='sweetheart'?' selected':'') + '>Sweetheart table</option>' +
+        '</select>' +
+        '<input class="input rt-count" type="number" min="0" max="60" value="' + r.count + '">' +
+        '<input class="input rt-seats" type="number" min="1" max="40" value="' + r.seats + '">' +
+      '</div>').join('');
+  $$('#tableRows .table-builder[data-i]').forEach(row => {
+    const i = +row.dataset.i;
+    $('.rt-type', row).addEventListener('change', e => {
+      roomRows[i].type = e.target.value; roomRows[i].seats = TYPE_DEFAULTS[e.target.value];
+      renderRoomRows();
+    });
+    $('.rt-count', row).addEventListener('input', e => { roomRows[i].count = Math.max(0, +e.target.value||0); updateCapacity(); });
+    $('.rt-seats', row).addEventListener('input', e => { roomRows[i].seats = Math.max(1, +e.target.value||1); updateCapacity(); });
+  });
+  updateCapacity();
+}
+function updateCapacity(){
+  const seats = roomRows.reduce((s,r) => s + r.count * r.seats, 0);
+  const g = state.guests.length;
+  const pct = g ? Math.min(100, Math.round(seats / g * 100)) : 100;
+  const bar = $('#capBar'); bar.classList.toggle('short', seats < g);
+  $('i', bar).style.width = pct + '%';
+  $('#capNote').classList.toggle('warn', seats < g);
+  $('#capNote').textContent = seats < g
+    ? seats + ' seats for ' + g + ' guests — ' + (g - seats) + ' short. Add tables now or later.'
+    : seats + ' seats for ' + g + ' guests' + (g ? ' — ' + (seats - g) + ' spare.' : '.');
+}
+$('#btnAddRow').addEventListener('click', () => { roomRows.push({type:'round', count:1, seats:10}); renderRoomRows(); });
+$('#btnRoomGo').addEventListener('click', () => {
+  state.eventName = $('#eventName').value.trim() || 'Untitled event';
+  state.tables = [];
+  let n = 1;
+  roomRows.forEach(r => {
+    for (let k=0;k<r.count;k++){
+      state.tables.push({
+        id: newId('t'),
+        label: r.type === 'sweetheart' ? 'Sweetheart' : String(n++),
+        type: r.type, seats: r.seats, rot: 0, x: 0, y: 0
+      });
+    }
+  });
+  autoLayout();
+  startApp();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   GEOMETRY
+   ═══════════════════════════════════════════════════════════ */
+const M = 40, SEAT = 34, SR = SEAT/2;
+
+function tableDims(t){
+  if (t.type === 'round'){
+    const D = Math.max(118, Math.round(t.seats * 42 / Math.PI) + 26);
+    return {w: D, h: D};
+  }
+  if (t.type === 'sweetheart'){
+    return {w: Math.max(120, t.seats * 62), h: 66};
+  }
+  const head = t.seats % 2 === 1 ? 1 : 0;
+  const per = Math.max(1, (t.seats - head) / 2);
+  return {w: Math.max(150, per * 44), h: 84, head, per};
+}
+function seatPoints(t){
+  const d = tableDims(t), pts = [];
+  if (t.type === 'round'){
+    const R = d.w/2 + 16, cx = M + d.w/2, cy = M + d.h/2;
+    for (let i=0;i<t.seats;i++){
+      const a = (-90 + i * 360 / t.seats) * Math.PI / 180;
+      pts.push({x: cx + R*Math.cos(a), y: cy + R*Math.sin(a), head:false});
+    }
+  } else if (t.type === 'sweetheart'){
+    for (let i=0;i<t.seats;i++){
+      pts.push({x: M + d.w*(i+0.5)/t.seats, y: M + d.h + 12, head:false});
+    }
+  } else {
+    const per = d.per, head = d.head;
+    for (let i=0;i<per;i++) pts.push({x: M + d.w*(i+0.5)/per, y: M - 12, head:false});
+    for (let i=0;i<per;i++) pts.push({x: M + d.w*(i+0.5)/per, y: M + d.h + 12, head:false});
+    if (head) pts.push({x: M + d.w + 14, y: M + d.h/2, head:true});
+  }
+  return pts;
+}
+function tableBox(t){
+  const d = tableDims(t);
+  return {w: d.w + M*2 + (d.head ? 20 : 0), h: d.h + M*2};
+}
+function autoLayout(){
+  const pad = 50, maxW = 2100;
+  let x = pad, y = pad, rowH = 0;
+  state.tables.forEach(t => {
+    const b = tableBox(t);
+    if (x + b.w > maxW){ x = pad; y += rowH + 26; rowH = 0; }
+    t.x = x; t.y = y;
+    x += b.w + 26; rowH = Math.max(rowH, b.h);
+  });
+  const need = y + rowH + pad;
+  $('#stage').style.height = Math.max(1000, need) + 'px';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LOOKUPS
+   ═══════════════════════════════════════════════════════════ */
+const guestById = id => state.guests.find(g => g.id === id);
+function partnerOf(gid){ const g = guestById(gid); return g && g.partnerId ? guestById(g.partnerId) : null; }
+function linkCouple(a, b){
+  const ga = guestById(a), gb = guestById(b);
+  if (!ga || !gb || a === b) return;
+  if (ga.partnerId) unlinkCouple(ga.id);
+  if (gb.partnerId) unlinkCouple(gb.id);
+  ga.partnerId = b; gb.partnerId = a;
+}
+function unlinkCouple(gid){
+  const g = guestById(gid); if (!g || !g.partnerId) return;
+  const other = guestById(g.partnerId);
+  if (other && other.partnerId === gid) delete other.partnerId;
+  delete g.partnerId;
+}
+/* try to seat gid's partner at the same table; returns true if they end up together */
+function seatPartnerWith(gid, tid){
+  const pt = partnerOf(gid); if (!pt) return true;
+  const pk = seatOfGuest(pt.id);
+  if (pk && pk.split('|')[0] === tid) return true;      // already together
+  const open = firstOpenSeat(tableById(tid));
+  if (!open) return false;
+  cascading = true; place(pt.id, open); cascading = false;
+  return true;
+}
+function couplesApart(){
+  const seen = new Set(); let n = 0;
+  state.guests.forEach(g => {
+    if (!g.partnerId || seen.has(g.id)) return;
+    seen.add(g.id); seen.add(g.partnerId);
+    const a = seatOfGuest(g.id), b = seatOfGuest(g.partnerId);
+    if (a && b && a.split('|')[0] !== b.split('|')[0]) n++;
+  });
+  return n;
+}
+function isApart(gid){
+  const g = guestById(gid); if (!g || !g.partnerId) return false;
+  const a = seatOfGuest(g.id), b = seatOfGuest(g.partnerId);
+  return a && b && a.split('|')[0] !== b.split('|')[0];
+}
+const tableById = id => state.tables.find(t => t.id === id);
+function seatOfGuest(gid){
+  for (const k in state.assignments) if (state.assignments[k] === gid) return k;
+  return null;
+}
+const isSeated = gid => !!seatOfGuest(gid);
+function tableOfGuest(gid){
+  const k = seatOfGuest(gid);
+  if (!k) return null;
+  const t = tableById(k.split('|')[0]);
+  return t || null;
+}
+function occupiedCount(t){
+  let n = 0;
+  for (let i=0;i<t.seats;i++) if (state.assignments[t.id+'|'+i]) n++;
+  return n;
+}
+const totalSeats = () => state.tables.reduce((s,t) => s + t.seats, 0);
+function firstOpenSeat(t){
+  for (let i=0;i<t.seats;i++) if (!state.assignments[t.id+'|'+i]) return t.id+'|'+i;
+  return null;
+}
+function seatLabel(key){
+  const [tid, idx] = key.split('|');
+  const t = tableById(tid);
+  return t ? (/^\d+$/.test(t.label) ? 'Table ' + t.label : t.label) + ' · seat ' + (+idx + 1) : '';
+}
+function tableTitle(t){ return /^\d+$/.test(t.label) ? 'Table ' + t.label : t.label; }
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER — PLAN
+   ═══════════════════════════════════════════════════════════ */
+function extraStyles(){
+  const s = document.createElement('style');
+  s.textContent =
+    '.tg.rot90{transform:rotate(90deg)}' +
+    '.tg.rot90 .label{transform:translate(-50%,-50%) rotate(-90deg)}' +
+    '.tg.rot90 .seat span{display:block;transform:rotate(-90deg)}' +
+    '.chip{touch-action:pan-y}' +
+    '.seat{touch-action:none}' +
+    '.tg .label{touch-action:none}' +
+    '.chip .heart{color:var(--alert);font-size:11px;flex:0 0 auto}' +
+    '.seat.coupled::after{content:\'\\2665\';position:absolute;right:2px;bottom:1px;font-size:7px;color:var(--ok);line-height:1}' +
+    '.seat.filled.coupled::after{color:#8fe0a4}' +
+    '.seat.apart::after{color:var(--alert) !important;content:\'\\2665\'}' +
+    '.seat.filled.apart{box-shadow:inset 0 0 0 2px var(--alert)}' +
+    '.tb-btn.toggle-on{background:var(--card);color:var(--ink);border-color:var(--card)}' +
+    '.drag-ghost{position:fixed;z-index:400;pointer-events:none;background:var(--ink);color:var(--card);padding:6px 12px;border-radius:3px;font-size:13px;box-shadow:0 6px 20px rgba(20,27,38,.3);transform:translate(-50%,-130%);white-space:nowrap}';
+  document.head.appendChild(s);
+}
+
+function renderPlan(){
+  const stage = $('#stage');
+  stage.innerHTML = state.tables.map(t => {
+    const d = tableDims(t), box = tableBox(t), pts = seatPoints(t);
+    const seats = pts.map((p,i) => {
+      const key = t.id + '|' + i;
+      const gid = state.assignments[key];
+      const g = gid ? guestById(gid) : null;
+      const cpl = g && g.partnerId ? ' coupled' + (isApart(g.id) ? ' apart' : '') : '';
+      return '<div class="seat' + (g ? ' filled' : '') + (p.head ? ' head' : '') + cpl + '"' +
+        ' data-seat="' + key + '"' + (g ? ' draggable="true"' : '') +
+        ' style="left:' + (p.x - SR) + 'px;top:' + (p.y - SR) + 'px;width:' + SEAT + 'px;height:' + SEAT + 'px"' +
+        ' title="' + esc(g ? g.name : 'Empty seat ' + (i+1)) + '">' +
+        '<span>' + esc(g ? shortName(g.name) : '') + '</span></div>';
+    }).join('');
+    return '<div class="tg ' + t.type.replace('sweetheart','sweet') + (t.rot ? ' rot90' : '') + '" data-table="' + t.id + '"' +
+      ' style="left:' + t.x + 'px;top:' + t.y + 'px;width:' + box.w + 'px;height:' + box.h + 'px">' +
+      '<div class="plate" style="left:' + M + 'px;top:' + M + 'px;width:' + d.w + 'px;height:' + d.h + 'px"></div>' +
+      '<div class="label" data-handle="' + t.id + '">' +
+        '<div class="num">' + esc(t.label) + '</div>' +
+        '<div class="cnt">' + occupiedCount(t) + '/' + t.seats + '</div>' +
+      '</div>' + seats + '</div>';
+  }).join('');
+  applyZoom();
+}
+function shortName(n){
+  const parts = String(n).replace(/^(Mr\.?|Mrs\.?|Ms\.?|Miss|Dr\.?|Rabbi|Prof\.?|Rev\.?)\s+/i,'').split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return parts[0] + ' ' + parts[parts.length-1].charAt(0) + '.';
+}
+function refreshTableChrome(tid){
+  const t = tableById(tid); if (!t) return;
+  const el = $('.tg[data-table="' + tid + '"]'); if (!el) return;
+  $('.cnt', el).textContent = occupiedCount(t) + '/' + t.seats;
+}
+function refreshSeat(key){
+  const el = $('.seat[data-seat="' + key + '"]'); if (!el) return;
+  const gid = state.assignments[key];
+  const g = gid ? guestById(gid) : null;
+  el.classList.toggle('filled', !!g);
+  el.setAttribute('draggable', g ? 'true' : 'false');
+  el.classList.toggle('coupled', !!(g && g.partnerId));
+  el.classList.toggle('apart', !!(g && isApart(g.id)));
+  el.title = g ? (g.name + (g.partnerId ? ' · couple' + (isApart(g.id) ? ' (partner at another table)' : '') : '')) : 'Empty seat';
+  $('span', el).textContent = g ? shortName(g.name) : '';
+  refreshTableChrome(key.split('|')[0]);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SEATING OPERATIONS
+   ═══════════════════════════════════════════════════════════ */
+function place(gid, key){
+  const prev = seatOfGuest(gid);
+  const sitting = state.assignments[key];
+  if (prev === key) return;
+  if (!suppressSnap) snapshot();
+  if (sitting && prev){ state.assignments[prev] = sitting; }   // swap
+  else if (prev) delete state.assignments[prev];
+  state.assignments[key] = gid;
+  if (prev) refreshSeat(prev);
+  refreshSeat(key);
+  if (state.keepCouples && !cascading){
+    const together = seatPartnerWith(gid, key.split('|')[0]);
+    if (!together){ const pt = partnerOf(gid); if (pt) toast('No room for ' + shortName(pt.name) + ' at this table'); }
+  }
+  afterChange();
+}
+function unseat(key){
+  if (!suppressSnap) snapshot();
+  delete state.assignments[key];
+  refreshSeat(key);
+  afterChange();
+}
+function afterChange(){
+  markDirty(); renderGuestPanel(); updateStats();
+  if (currentView !== 'plan') renderLists();
+}
+function updateStats(){
+  const seated = Object.keys(state.assignments).filter(k => state.assignments[k]).length;
+  $('#stSeated').textContent = seated;
+  $('#stUnseated').textContent = state.guests.length - seated;
+  $('#stSeats').textContent = totalSeats();
+  $('#stTables').textContent = state.tables.length;
+  $('#guestTally').textContent = seated + '/' + state.guests.length;
+  const apart = couplesApart();
+  const ae = $('#stApart');
+  if (ae){
+    ae.classList.toggle('hidden', apart === 0);
+    ae.textContent = apart ? '\u2665 ' + apart + (apart === 1 ? ' couple' : ' couples') + ' seated apart' : '';
+  }
+  const cb = $('#btnCouples');
+  if (cb) cb.classList.toggle('toggle-on', !!state.keepCouples);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GUEST PANEL
+   ═══════════════════════════════════════════════════════════ */
+let guestFilter = 'all', pickedGuest = null;
+function renderGuestPanel(){
+  const q = ($('#guestSearch').value || '').toLowerCase();
+  const list = state.guests.slice().sort(byName).filter(g => {
+    if (q && !g.name.toLowerCase().includes(q)) return false;
+    const s = isSeated(g.id);
+    return guestFilter === 'all' || (guestFilter === 'seated' ? s : !s);
+  });
+  $('#guestScroll').innerHTML = list.length ? list.map(g => {
+    const t = tableOfGuest(g.id);
+    const pt = g.partnerId ? guestById(g.partnerId) : null;
+    return '<div class="chip' + (t ? ' seated' : '') + (pickedGuest === g.id ? ' picked' : '') + (pt ? ' has-couple' : '') + '"' +
+      ' data-guest="' + g.id + '" draggable="true">' +
+      (pt ? '<span class="heart" title="Couple with ' + esc(pt.name) + '">\u2665</span>' : '') +
+      '<span class="nm">' + esc(g.name) + '</span>' +
+      (t ? '<span class="at">' + esc(t.label) + '</span>' : '') + '</div>';
+  }).join('') : '<div class="pop-empty">No guests match.</div>';
+}
+$('#guestSearch').addEventListener('input', renderGuestPanel);
+$$('.seg button').forEach(b => b.addEventListener('click', () => {
+  $$('.seg button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); guestFilter = b.dataset.filter; renderGuestPanel();
+}));
+function addGuest(name){
+  name = name.trim(); if (!name) return null;
+  if (!suppressSnap) snapshot();
+  const g = {id: newId('g'), name, party: ''};
+  state.guests.push(g); afterChange(); return g;
+}
+$('#btnNewGuest').addEventListener('click', () => {
+  const v = $('#newGuest').value.trim(); if (!v) return;
+  v.split(/,\s*/).forEach(n => n.trim() && addGuest(n.trim()));
+  $('#newGuest').value = ''; toast('Added');
+});
+$('#newGuest').addEventListener('keydown', e => { if (e.key === 'Enter') $('#btnNewGuest').click(); });
+
+/* ── drag from panel ── */
+let dragGuestId = null;
+$('#guestScroll').addEventListener('dragstart', e => {
+  const chip = e.target.closest('.chip'); if (!chip) return;
+  dragGuestId = chip.dataset.guest;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', dragGuestId); } catch(err){}
+});
+$('#guestScroll').addEventListener('dragend', () => { dragGuestId = null; });
+$('#guestScroll').addEventListener('click', e => {
+  if (typeof lastTouchDrag !== 'undefined' && Date.now() - lastTouchDrag < 500) return;
+  const chip = e.target.closest('.chip'); if (!chip) return;
+  const gid = chip.dataset.guest;
+  const seat = seatOfGuest(gid);
+  if (seat){ flashSeat(seat); return; }
+  pickedGuest = (pickedGuest === gid) ? null : gid;
+  renderGuestPanel();
+  $('#stHint').textContent = pickedGuest ? 'Now click an empty seat to place ' + guestById(gid).name : 'Drag a name onto a seat, or click a seat to choose';
+});
+$('#guestScroll').addEventListener('contextmenu', e => {
+  const chip = e.target.closest('.chip'); if (!chip) return;
+  e.preventDefault(); guestMenu(chip.dataset.guest, e.clientX, e.clientY);
+});
+function flashSeat(key){
+  setView('plan');
+  const el = $('.seat[data-seat="' + key + '"]'); if (!el) return;
+  el.classList.add('hi');
+  el.scrollIntoView({block:'center', inline:'center', behavior:'smooth'});
+  setTimeout(()=>el.classList.remove('hi'), 1400);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STAGE INTERACTION
+   ═══════════════════════════════════════════════════════════ */
+const stage = $('#stage');
+stage.addEventListener('dragstart', e => {
+  const seat = e.target.closest('.seat'); if (!seat || !seat.classList.contains('filled')) return;
+  dragGuestId = state.assignments[seat.dataset.seat];
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', dragGuestId); } catch(err){}
+});
+stage.addEventListener('dragover', e => {
+  const seat = e.target.closest('.seat'); if (!seat || !dragGuestId) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = 'move'; seat.classList.add('drop');
+});
+stage.addEventListener('dragleave', e => {
+  const seat = e.target.closest('.seat'); if (seat) seat.classList.remove('drop');
+});
+stage.addEventListener('drop', e => {
+  const seat = e.target.closest('.seat'); if (!seat) return;
+  e.preventDefault(); seat.classList.remove('drop');
+  if (dragGuestId) place(dragGuestId, seat.dataset.seat);
+  dragGuestId = null;
+});
+stage.addEventListener('dragend', () => {
+  $$('.seat.drop').forEach(s => s.classList.remove('drop'));
+  dragGuestId = null;
+});
+
+/* ── touch drag (finger/pen) — native DnD is mouse-only ── */
+let tDrag = null, lastTouchDrag = 0;
+function makeGhost(text, x, y){
+  const g = document.createElement('div');
+  g.className = 'drag-ghost'; g.textContent = text;
+  document.body.appendChild(g);
+  g.style.left = x + 'px'; g.style.top = y + 'px';
+  return g;
+}
+$('#guestScroll').addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') return;
+  const chip = e.target.closest('.chip');
+  if (!chip || chip.classList.contains('seated')) return;
+  tDrag = {gid: chip.dataset.guest, sx: e.clientX, sy: e.clientY, ghost: null, horiz: true};
+});
+stage.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') return;
+  const seat = e.target.closest('.seat.filled');
+  if (!seat) return;
+  tDrag = {gid: state.assignments[seat.dataset.seat], sx: e.clientX, sy: e.clientY, ghost: null, horiz: false};
+});
+window.addEventListener('pointermove', e => {
+  if (!tDrag) return;
+  const dx = e.clientX - tDrag.sx, dy = e.clientY - tDrag.sy;
+  if (!tDrag.ghost){
+    const go = tDrag.horiz ? (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) : (Math.hypot(dx, dy) > 8);
+    if (!go){ if (tDrag.horiz && Math.abs(dy) > 14) tDrag = null; return; }
+    const g = guestById(tDrag.gid);
+    if (!g){ tDrag = null; return; }
+    tDrag.ghost = makeGhost(g.name, e.clientX, e.clientY);
+  }
+  e.preventDefault();
+  tDrag.ghost.style.left = e.clientX + 'px';
+  tDrag.ghost.style.top  = e.clientY + 'px';
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const seat = under && under.closest ? under.closest('.seat') : null;
+  $$('.seat.drop').forEach(x => x.classList.remove('drop'));
+  if (seat) seat.classList.add('drop');
+}, {passive: false});
+window.addEventListener('pointerup', e => {
+  if (!tDrag) return;
+  if (tDrag.ghost){
+    tDrag.ghost.remove();
+    lastTouchDrag = Date.now();
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const seat = under && under.closest ? under.closest('.seat') : null;
+    $$('.seat.drop').forEach(x => x.classList.remove('drop'));
+    if (seat) place(tDrag.gid, seat.dataset.seat);
+  }
+  tDrag = null;
+});
+
+/* click seats */
+stage.addEventListener('click', e => {
+  const seat = e.target.closest('.seat');
+  if (!seat) return;
+  if (Date.now() - lastTouchDrag < 500) return;
+  const key = seat.dataset.seat;
+  const gid = state.assignments[key];
+  if (pickedGuest && !gid){
+    place(pickedGuest, key); pickedGuest = null;
+    $('#stHint').textContent = 'Drag a name onto a seat, or click a seat to choose';
+    renderGuestPanel(); return;
+  }
+  const r = seat.getBoundingClientRect();
+  if (gid) seatMenu(key, r.right + 8, r.top);
+  else emptySeatMenu(key, r.right + 8, r.top);
+});
+
+/* drag tables around */
+let moving = null;
+stage.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch' && e.target.closest('.seat')) return;
+  const handle = e.target.closest('.label') || (e.target.classList.contains('plate') ? e.target : null);
+  if (!handle) return;
+  if (e.target.tagName === 'INPUT') return;
+  const tg = handle.closest('.tg'); const t = tableById(tg.dataset.table);
+  moving = {t, tg, sx: e.clientX, sy: e.clientY, ox: t.x, oy: t.y, moved: false};
+  e.preventDefault();
+});
+window.addEventListener('pointermove', e => {
+  if (!moving) return;
+  const dx = (e.clientX - moving.sx) / state.zoom, dy = (e.clientY - moving.sy) / state.zoom;
+  if (!moving.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+  moving.moved = true;
+  moving.t.x = Math.max(0, Math.round((moving.ox + dx) / 4) * 4);
+  moving.t.y = Math.max(0, Math.round((moving.oy + dy) / 4) * 4);
+  moving.tg.style.left = moving.t.x + 'px';
+  moving.tg.style.top  = moving.t.y + 'px';
+});
+window.addEventListener('pointerup', e => {
+  if (!moving) return;
+  const m = moving; moving = null;
+  if (m.moved){ markDirty(); growStage(); }
+  else tableMenu(m.t.id, e.clientX, e.clientY);
+});
+function growStage(){
+  let maxY = 900, maxX = 1400;
+  state.tables.forEach(t => {
+    const b = tableBox(t);
+    maxY = Math.max(maxY, t.y + b.h + 80);
+    maxX = Math.max(maxX, t.x + b.w + 80);
+  });
+  stage.style.height = maxY + 'px';
+  stage.style.width  = maxX + 'px';
+}
+
+/* zoom */
+function applyZoom(){
+  stage.style.transform = 'scale(' + state.zoom + ')';
+  $('#zLvl').textContent = Math.round(state.zoom * 100) + '%';
+}
+$('#zIn').addEventListener('click', () => { state.zoom = Math.min(1.6, state.zoom + .1); applyZoom(); });
+$('#zOut').addEventListener('click', () => { state.zoom = Math.max(.3, state.zoom - .1); applyZoom(); });
+$('#zFit').addEventListener('click', () => {
+  const wrap = $('#stageWrap');
+  let maxX = 600, maxY = 400;
+  state.tables.forEach(t => { const b = tableBox(t); maxX = Math.max(maxX, t.x+b.w+40); maxY = Math.max(maxY, t.y+b.h+40); });
+  state.zoom = Math.max(.3, Math.min(1, Math.min(wrap.clientWidth/maxX, wrap.clientHeight/maxY)));
+  applyZoom();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   POPOVERS
+   ═══════════════════════════════════════════════════════════ */
+function closePop(){ $('#popRoot').innerHTML = ''; }
+function openPop(x, y, html){
+  closePop();
+  const p = document.createElement('div');
+  p.className = 'pop'; p.innerHTML = html;
+  $('#popRoot').appendChild(p);
+  const r = p.getBoundingClientRect();
+  p.style.left = Math.max(8, Math.min(x, window.innerWidth  - r.width  - 10)) + 'px';
+  p.style.top  = Math.max(8, Math.min(y, window.innerHeight - r.height - 10)) + 'px';
+  const inp = $('input', p); if (inp) setTimeout(()=>inp.focus(), 10);
+  return p;
+}
+document.addEventListener('mousedown', e => { if (!e.target.closest('.pop') && !e.target.closest('.seat') && !e.target.closest('.label') && !e.target.closest('.plate')) closePop(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape'){ closePop(); pickedGuest = null; renderGuestPanel(); }
+});
+
+function unseatedList(){ return state.guests.filter(g => !isSeated(g.id)).sort(byName); }
+
+function emptySeatMenu(key, x, y){
+  const pool = unseatedList();
+  const p = openPop(x, y,
+    '<div class="pop-head"><span class="t">' + esc(seatLabel(key)) + '</span><span class="s">Empty</span></div>' +
+    '<div class="pop-body">' +
+      '<input class="search" placeholder="Search or type a new name">' +
+      '<div class="pop-list">' + (pool.length
+        ? pool.map(g => '<button class="pop-item" data-g="' + g.id + '">' + esc(g.name) + '</button>').join('')
+        : '<div class="pop-empty">Everyone is seated.</div>') + '</div>' +
+      '<button class="pop-item" data-new="1" style="border-top:1px solid var(--rule);margin-top:4px;color:var(--blue)">+ Seat a new guest here</button>' +
+      '<button class="pop-item warn" data-remove="1">Remove this seat</button>' +
+    '</div>');
+  const inp = $('input', p), listEl = $('.pop-list', p);
+  inp.addEventListener('input', () => {
+    const q = inp.value.toLowerCase();
+    const f = pool.filter(g => g.name.toLowerCase().includes(q));
+    listEl.innerHTML = f.length ? f.map(g => '<button class="pop-item" data-g="' + g.id + '">' + esc(g.name) + '</button>').join('')
+                                : '<div class="pop-empty">No match — use the button below.</div>';
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const first = $('.pop-item', listEl);
+    if (first){ place(first.dataset.g, key); closePop(); }
+    else if (inp.value.trim()){
+      const g = addGuest(inp.value.trim());
+      suppressSnap = true; place(g.id, key); suppressSnap = false;
+      closePop();
+    }
+  });
+  p.addEventListener('click', e => {
+    const b = e.target.closest('.pop-item'); if (!b) return;
+    if (b.dataset.remove){
+      const [tid, i] = key.split('|');
+      snapshot(); removeSeatAt(tid, +i);
+      renderPlan(); afterChange(); closePop(); return;
+    }
+    if (b.dataset.new){
+      const nm = inp.value.trim() || prompt('Name of the new guest');
+      if (nm){
+        const g = addGuest(nm);
+        suppressSnap = true; place(g.id, key); suppressSnap = false;
+      }
+    } else place(b.dataset.g, key);
+    closePop();
+  });
+}
+function seatMenu(key, x, y){
+  const gid = state.assignments[key];
+  const g = guestById(gid); if (!g) return;
+  const p = openPop(x, y,
+    '<div class="pop-head"><span class="t">' + esc(g.name) + '</span><span class="s">' + esc(seatLabel(key)) + '</span></div>' +
+    '<div class="pop-body">' +
+      '<button class="pop-item" data-a="move">Move to another seat</button>' +
+      '<button class="pop-item" data-a="table">Move to a table…</button>' +
+      (g.partnerId
+        ? '<button class="pop-item" data-a="unlink">Unlink from ' + esc(shortName((guestById(g.partnerId)||{}).name || '')) + '</button>'
+        : '<button class="pop-item" data-a="link">Link as a couple…</button>') +
+      (isApart(gid) ? '<button class="pop-item" data-a="bring">Seat partner at this table</button>' : '') +
+      '<button class="pop-item" data-a="rename">Rename this guest</button>' +
+      '<button class="pop-item" data-a="unseat">Take out of this seat</button>' +
+      '<button class="pop-item" data-a="rmseat">Remove this chair</button>' +
+      '<button class="pop-item warn" data-a="delete">Remove from the guest list</button>' +
+    '</div>');
+  p.addEventListener('click', e => {
+    const b = e.target.closest('.pop-item'); if (!b) return;
+    const a = b.dataset.a;
+    if (['rename','delete','unlink','bring','rmseat'].includes(a)) snapshot();
+    if (a === 'link'){ couplePicker(gid, x, y); return; }
+    if (a === 'move'){
+      pickedGuest = gid; renderGuestPanel();
+      $('#stHint').textContent = 'Click an empty seat to move ' + g.name;
+    }
+    if (a === 'table'){ tablePicker(gid, x, y); return; }
+    if (a === 'unlink'){ unlinkCouple(gid); renderPlan(); afterChange(); }
+    if (a === 'bring'){
+      const ok = seatPartnerWith(gid, key.split('|')[0]);
+      renderPlan(); afterChange();
+      if (!ok) toast('No open seat at this table for the partner');
+    }
+    if (a === 'rename'){
+      const nm = prompt('New name', g.name);
+      if (nm && nm.trim()){ g.name = nm.trim(); refreshSeat(key); afterChange(); }
+    }
+    if (a === 'unseat') unseat(key);
+    if (a === 'rmseat'){
+      const [tid, i] = key.split('|');
+      removeSeatAt(tid, +i);       // frees the guest, then drops the chair
+      renderPlan(); afterChange(); closePop(); return;
+    }
+    if (a === 'delete'){
+      delete state.assignments[key];
+      state.guests = state.guests.filter(x2 => x2.id !== gid);
+      refreshSeat(key); afterChange();
+    }
+    closePop();
+  });
+}
+function tablePicker(gid, x, y){
+  const g = guestById(gid);
+  const rows = state.tables.map(t => {
+    const open = t.seats - occupiedCount(t);
+    return '<button class="pop-item" data-t="' + t.id + '"' + (open ? '' : ' disabled style="opacity:.4"') + '>' +
+      esc(tableTitle(t)) + ' <span class="mono" style="color:var(--graphite);font-size:11px">' + open + ' open</span></button>';
+  }).join('');
+  const p = openPop(x, y,
+    '<div class="pop-head"><span class="t">' + esc(g.name) + '</span><span class="s">Move to</span></div>' +
+    '<div class="pop-body"><div class="pop-list">' + (rows || '<div class="pop-empty">No tables yet.</div>') + '</div></div>');
+  p.addEventListener('click', e => {
+    const b = e.target.closest('.pop-item'); if (!b || b.disabled) return;
+    const t = tableById(b.dataset.t);
+    const open = firstOpenSeat(t);
+    if (open) place(gid, open);
+    closePop();
+  });
+}
+function couplePicker(gid, x, y){
+  const g = guestById(gid);
+  const others = state.guests.filter(o => o.id !== gid).sort(byName);
+  const p = openPop(x, y,
+    '<div class="pop-head"><span class="t">' + esc(g.name) + '</span><span class="s">Pair with</span></div>' +
+    '<div class="pop-body">' +
+      '<input class="search" placeholder="Search for a partner">' +
+      '<div class="pop-list">' + (others.length
+        ? others.map(o => '<button class="pop-item" data-g="' + o.id + '">' + esc(o.name) +
+            (o.partnerId ? ' <span class="mono" style="color:var(--graphite);font-size:10px">paired</span>' : '') + '</button>').join('')
+        : '<div class="pop-empty">No other guests yet.</div>') + '</div>' +
+    '</div>');
+  const inp = $('input', p), listEl = $('.pop-list', p);
+  inp.addEventListener('input', () => {
+    const q = inp.value.toLowerCase();
+    const f = others.filter(o => o.name.toLowerCase().includes(q));
+    listEl.innerHTML = f.length ? f.map(o => '<button class="pop-item" data-g="' + o.id + '">' + esc(o.name) +
+      (o.partnerId ? ' <span class="mono" style="color:var(--graphite);font-size:10px">paired</span>' : '') + '</button>').join('')
+      : '<div class="pop-empty">No match.</div>';
+  });
+  p.addEventListener('click', e => {
+    const b = e.target.closest('.pop-item'); if (!b) return;
+    snapshot();
+    linkCouple(gid, b.dataset.g);
+    // if one is already seated with room, pull the other over
+    const k = seatOfGuest(gid) || seatOfGuest(b.dataset.g);
+    if (k && state.keepCouples) seatPartnerWith(state.assignments[k], k.split('|')[0]);
+    renderPlan(); afterChange(); closePop();
+    toast(g.name + ' \u2665 ' + guestById(b.dataset.g).name);
+  });
+}
+function guestMenu(gid, x, y){
+  const g = guestById(gid);
+  const p = openPop(x, y,
+    '<div class="pop-head"><span class="t">' + esc(g.name) + '</span></div>' +
+    '<div class="pop-body">' +
+      '<button class="pop-item" data-a="table">Seat at a table…</button>' +
+      (g.partnerId
+        ? '<button class="pop-item" data-a="unlink">Unlink from ' + esc(shortName((guestById(g.partnerId)||{}).name || '')) + '</button>'
+        : '<button class="pop-item" data-a="link">Link as a couple…</button>') +
+      '<button class="pop-item" data-a="rename">Rename</button>' +
+      '<button class="pop-item warn" data-a="delete">Remove from the guest list</button>' +
+    '</div>');
+  p.addEventListener('click', e => {
+    const b = e.target.closest('.pop-item'); if (!b) return;
+    if (b.dataset.a === 'table'){ tablePicker(gid, x, y); return; }
+    if (b.dataset.a === 'link'){ couplePicker(gid, x, y); return; }
+    snapshot();
+    if (b.dataset.a === 'unlink'){ unlinkCouple(gid); renderPlan(); afterChange(); }
+    if (b.dataset.a === 'rename'){
+      const nm = prompt('New name', g.name);
+      if (nm && nm.trim()){ g.name = nm.trim(); const k = seatOfGuest(gid); if (k) refreshSeat(k); afterChange(); }
+    }
+    if (b.dataset.a === 'delete'){
+      unlinkCouple(gid);
+      const k = seatOfGuest(gid); if (k) delete state.assignments[k];
+      state.guests = state.guests.filter(x2 => x2.id !== gid);
+      renderPlan(); afterChange();
+    }
+    closePop();
+  });
+}
+function tableMenu(tid, x, y){
+  const t = tableById(tid); if (!t) return;
+  const p = openPop(x, y,
+    '<div class="pop-head"><span class="t">' + esc(tableTitle(t)) + '</span>' +
+    '<span class="s">' + occupiedCount(t) + '/' + t.seats + '</span></div>' +
+    '<div class="pop-body">' +
+      '<input class="search" id="tblName" value="' + esc(t.label) + '" placeholder="Table name">' +
+      '<button class="pop-item" data-a="add">Add a seat</button>' +
+      '<button class="pop-item" data-a="less">Remove a seat</button>' +
+      '<button class="pop-item" data-a="rot">Rotate 90°</button>' +
+      '<button class="pop-item" data-a="dup">Duplicate this table</button>' +
+      '<button class="pop-item" data-a="clear">Clear everyone off it</button>' +
+      '<button class="pop-item warn" data-a="del">Delete this table</button>' +
+    '</div>');
+  const nameInput = $('#tblName', p);
+  nameInput.addEventListener('change', () => { t.label = nameInput.value.trim() || t.label; renderPlan(); markDirty(); renderLists(); });
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter'){ nameInput.blur(); closePop(); } });
+  p.addEventListener('click', e => {
+    const b = e.target.closest('.pop-item'); if (!b) return;
+    const a = b.dataset.a;
+    snapshot();
+    if (a === 'add'){ t.seats++; }
+    if (a === 'less'){
+      if (t.seats <= 1) return;
+      delete state.assignments[t.id + '|' + (t.seats-1)];
+      t.seats--;
+    }
+    if (a === 'rot') t.rot = t.rot ? 0 : 90;
+    if (a === 'dup'){
+      const copy = Object.assign({}, t, {id: newId('t'), x: t.x + 30, y: t.y + 30, label: nextTableLabel()});
+      state.tables.push(copy);
+    }
+    if (a === 'clear'){ for (let i=0;i<t.seats;i++) delete state.assignments[t.id + '|' + i]; }
+    if (a === 'del'){
+      if (occupiedCount(t) && !confirm('Delete ' + tableTitle(t) + '? ' + occupiedCount(t) + ' guests will go back to the unseated list.')) return;
+      for (let i=0;i<t.seats;i++) delete state.assignments[t.id + '|' + i];
+      state.tables = state.tables.filter(x2 => x2.id !== tid);
+    }
+    renderPlan(); afterChange(); closePop();
+  });
+}
+/* remove one specific seat: compact higher indices down, free its occupant */
+function removeSeatAt(tid, idx){
+  const t = tableById(tid); if (!t || t.seats <= 1) return;
+  const moved = {};
+  for (let i = 0; i < t.seats; i++){
+    if (i === idx) continue;                       // occupant here (if any) is freed
+    const gid = state.assignments[tid + '|' + i];
+    if (gid){ const ni = i < idx ? i : i - 1; moved[tid + '|' + ni] = gid; }
+  }
+  for (let i = 0; i < t.seats; i++) delete state.assignments[tid + '|' + i];
+  Object.assign(state.assignments, moved);
+  t.seats--;
+}
+function nextTableLabel(){
+  const nums = state.tables.map(t => parseInt(t.label,10)).filter(n => !isNaN(n));
+  return String((nums.length ? Math.max.apply(null, nums) : 0) + 1);
+}
+$('#btnAddTable').addEventListener('click', e => {
+  const p = openPop(e.clientX - 120, 62,
+    '<div class="pop-head"><span class="t">Add a table</span></div>' +
+    '<div class="pop-body">' +
+      '<button class="pop-item" data-t="round">Round · 10 seats</button>' +
+      '<button class="pop-item" data-t="banquet">Long banquet · 18 seats</button>' +
+      '<button class="pop-item" data-t="sweetheart">Sweetheart · 2 seats</button>' +
+    '</div>');
+  p.addEventListener('click', ev => {
+    const b = ev.target.closest('.pop-item'); if (!b) return;
+    const type = b.dataset.t;
+    snapshot();
+    const t = {id: newId('t'), label: type === 'sweetheart' ? 'Sweetheart' : nextTableLabel(),
+               type, seats: TYPE_DEFAULTS[type], rot: 0, x: 60, y: 60};
+    const last = state.tables[state.tables.length-1];
+    if (last){ const b2 = tableBox(last); t.x = last.x + b2.w + 26; t.y = last.y; if (t.x > 1900){ t.x = 50; t.y = last.y + b2.h + 26; } }
+    state.tables.push(t);
+    renderPlan(); growStage(); afterChange(); closePop();
+    toast(tableTitle(t) + ' added');
+  });
+});
+
+/* auto-fill */
+$('#btnAutoSeat').addEventListener('click', () => {
+  const pool = unseatedList();
+  if (!pool.length){ toast('Everyone already has a seat'); return; }
+  snapshot(); suppressSnap = true;
+  const groupKey = g => g.partnerId
+      ? 'couple:' + [g.id, g.partnerId].sort().join('-')
+      : (g.party ? 'party:' + g.party : 'solo:' + g.id);
+  const groups = {};
+  pool.forEach(g => { const k = groupKey(g); (groups[k] = groups[k] || []).push(g); });
+  const parties = Object.values(groups).sort((a,b) => b.length - a.length);
+  let placed = 0;
+  parties.forEach(party => {
+    let target = state.tables.find(t => (t.seats - occupiedCount(t)) >= party.length);
+    party.forEach(g => {
+      let seat = target ? firstOpenSeat(target) : null;
+      if (!seat){
+        const t = state.tables.find(t2 => firstOpenSeat(t2));
+        seat = t ? firstOpenSeat(t) : null;
+      }
+      if (seat){ state.assignments[seat] = g.id; placed++; }
+    });
+  });
+  suppressSnap = false;
+  renderPlan(); afterChange();
+  toast(placed + ' seated' + (placed < pool.length ? ' · ' + (pool.length - placed) + ' still need seats' : ''));
+});
+
+/* ═══════════════════════════════════════════════════════════
+   LIST VIEWS
+   ═══════════════════════════════════════════════════════════ */
+let currentView = 'plan';
+function setView(v){
+  currentView = v;
+  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
+  $('#stageWrap').classList.toggle('hidden', v !== 'plan');
+  $('#view-alpha').classList.toggle('hidden', v !== 'alpha');
+  $('#view-bytable').classList.toggle('hidden', v !== 'bytable');
+  if (v !== 'plan') renderLists();
+}
+$$('.tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
+
+function renderLists(){
+  const rows = state.guests.slice().sort(byName).map(g => {
+    const k = seatOfGuest(g.id);
+    const t = k ? tableById(k.split('|')[0]) : null;
+    return '<tr><td>' + esc(g.name) + '</td>' +
+      (t ? '<td class="t">' + esc(tableTitle(t)) + '</td><td class="t">' + (+k.split('|')[1] + 1) + '</td>'
+         : '<td class="u">unseated</td><td></td>') + '</tr>';
+  }).join('');
+  $('#alphaTable').innerHTML = '<tr><th>Guest</th><th>Table</th><th>Seat</th></tr>' +
+    (rows || '<tr><td colspan="3" style="color:var(--graphite)">No guests yet.</td></tr>');
+
+  const blocks = state.tables.map(t => {
+    const names = [];
+    for (let i=0;i<t.seats;i++){
+      const gid = state.assignments[t.id + '|' + i];
+      if (gid){ const g = guestById(gid); if (g) names.push(g.name); }
+    }
+    names.sort((a,b) => sortKey(a).localeCompare(sortKey(b)));
+    return '<div class="tblock"><h3>' + esc(tableTitle(t)) +
+      '<em>' + names.length + ' of ' + t.seats + ' seats</em></h3>' +
+      (names.length ? '<ol>' + names.map(n => '<li>' + esc(n) + '</li>').join('') + '</ol>'
+                    : '<p style="color:var(--graphite);font-size:13px">Empty</p>') + '</div>';
+  }).join('');
+  const un = state.guests.filter(g => !isSeated(g.id)).sort(byName);
+  $('#byTableWrap').innerHTML = blocks + (un.length
+    ? '<div class="tblock"><h3 style="color:var(--alert)">Not yet seated<em>' + un.length + '</em></h3><ol>' +
+      un.map(g => '<li>' + esc(g.name) + '</li>').join('') + '</ol></div>' : '');
+}
+function csvOfGuests(){
+  const lines = ['Guest,Table,Seat'];
+  state.guests.slice().sort(byName).forEach(g => {
+    const k = seatOfGuest(g.id);
+    const t = k ? tableById(k.split('|')[0]) : null;
+    lines.push([csvCell(g.name), csvCell(t ? tableTitle(t) : 'Unseated'), k ? (+k.split('|')[1] + 1) : ''].join(','));
+  });
+  return lines.join('\n');
+}
+function csvByTable(){
+  const lines = ['Table,Seat,Guest,Party'];
+  state.tables.forEach((t, ti) => {
+    if (ti) lines.push('');                               // blank row separates tables
+    let filled = 0;
+    for (let i=0;i<t.seats;i++){
+      const gid = state.assignments[t.id + '|' + i];
+      const g = gid ? guestById(gid) : null;
+      if (g) filled++;
+      lines.push([csvCell(tableTitle(t)), i+1, csvCell(g ? g.name : ''), csvCell(g ? (g.party||'') : '')].join(','));
+    }
+    lines.push([csvCell(tableTitle(t)), 'Subtotal', filled + ' of ' + t.seats + ' seated', ''].join(','));
+  });
+  const un = state.guests.filter(g => !isSeated(g.id)).sort(byName);
+  if (un.length){
+    lines.push('');
+    un.forEach(g => lines.push([csvCell('Not seated'), '', csvCell(g.name), csvCell(g.party||'')].join(',')));
+  }
+  return lines.join('\n');
+}
+const slug = () => (state.eventName || 'seating-chart').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'seating-chart';
+
+/* ═══════════════════════════════════════════════════════════
+   PDF EXPORT — a dedicated, print-perfect document per view.
+   Opens in a new window with the real fonts and hand-tuned
+   print CSS, then invokes Save-as-PDF. Fully offline.
+   ═══════════════════════════════════════════════════════════ */
+function prettyDate(){
+  try { return new Date().toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'}); }
+  catch(e){ return ''; }
+}
+function printCSS(){
+  return `
+  @page{ size:auto; margin:18mm 16mm 16mm; }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  html,body{ background:#fff; color:#141b26; font-family:'Archivo','Helvetica Neue',Arial,sans-serif; font-size:10.5pt; line-height:1.4; }
+  .doc{ max-width:190mm; margin:0 auto; }
+
+  .masthead{ text-align:center; padding-bottom:9mm; margin-bottom:9mm; border-bottom:1.4pt solid #141b26; position:relative; }
+  .masthead .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:8pt; letter-spacing:.30em; text-transform:uppercase; color:#767d89; margin-bottom:5mm; }
+  .masthead h1{ font-family:'Fraunces',Georgia,serif; font-weight:600; font-size:27pt; letter-spacing:-.01em; line-height:1.05; }
+  .masthead .meta{ font-family:'IBM Plex Mono',monospace; font-size:8.5pt; letter-spacing:.06em; color:#39424f; margin-top:5mm; }
+  .masthead .rule-dot{ position:absolute; left:50%; bottom:-4.4pt; transform:translateX(-50%); width:7pt; height:7pt; background:#fff; border:1.4pt solid #141b26; border-radius:50%; }
+
+  /* by-name directory: two columns, dotted leaders */
+  .directory{ columns:2; column-gap:12mm; }
+  .entry{ display:flex; align-items:baseline; gap:5pt; break-inside:avoid; padding:2.4pt 0; }
+  .entry .nm{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:64%; }
+  .entry .lead{ flex:1 1 auto; border-bottom:.6pt dotted #b9b6ab; transform:translateY(-2.6pt); min-width:8pt; }
+  .entry .tb{ white-space:nowrap; font-family:'IBM Plex Mono',monospace; font-size:8.5pt; color:#39424f; letter-spacing:.02em; }
+  .entry.un .tb{ color:#a83a1b; font-style:normal; }
+  .section-tag{ font-family:'IBM Plex Mono',monospace; font-size:8pt; letter-spacing:.22em; text-transform:uppercase; color:#767d89; margin:8mm 0 3mm; break-after:avoid; column-span:all; border-top:.6pt solid #d8d5c9; padding-top:3mm; }
+
+  /* by-table plan: non-breaking cards flowing in two columns */
+  .plan{ columns:2; column-gap:12mm; }
+  .tcard{ break-inside:avoid; margin-bottom:7mm; padding-bottom:5mm; border-bottom:.6pt solid #e4e1d5; }
+  .tcard:last-child{ border-bottom:none; }
+  .tcard .th{ display:flex; align-items:baseline; justify-content:space-between; gap:8pt; margin-bottom:3mm; }
+  .tcard .th h2{ font-family:'Fraunces',Georgia,serif; font-weight:600; font-size:14pt; letter-spacing:-.005em; }
+  .tcard .th .cap{ font-family:'IBM Plex Mono',monospace; font-size:7.5pt; letter-spacing:.14em; text-transform:uppercase; color:#767d89; white-space:nowrap; }
+  .tcard ol{ list-style:none; counter-reset:s; }
+  .tcard li{ counter-increment:s; padding:1.7pt 0 1.7pt 8mm; position:relative; font-size:10pt; break-inside:avoid; }
+  .tcard li::before{ content:counter(s,decimal-leading-zero); position:absolute; left:0; top:1.7pt; font-family:'IBM Plex Mono',monospace; font-size:7.5pt; color:#a99f8c; }
+  .tcard .empty{ color:#a2998a; font-style:italic; font-size:9.5pt; padding-left:8mm; }
+
+  .unseat-block{ break-inside:avoid; margin-top:2mm; }
+  .unseat-block h2{ font-family:'Fraunces',Georgia,serif; font-weight:600; font-size:13pt; color:#a83a1b; margin-bottom:3mm; }
+  .plainlist{ list-style:none; columns:2; column-gap:12mm; } .plainlist li{ padding:2pt 0; break-inside:avoid; font-size:10pt; }
+  .colophon{ margin-top:10mm; padding-top:4mm; border-top:.6pt solid #d8d5c9; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:7pt; letter-spacing:.16em; text-transform:uppercase; color:#a2998a; }
+  `;
+}
+function masthead(tag, meta){
+  return '<div class="masthead"><div class="eyebrow">' + esc(tag) + '</div>' +
+    '<h1>' + esc(state.eventName || 'Seating chart') + '</h1>' +
+    '<div class="meta">' + esc(meta) + '</div><div class="rule-dot"></div></div>';
+}
+function directoryEntries(list){
+  return list.map(g => {
+    const k = seatOfGuest(g.id);
+    const t = k ? tableById(k.split('|')[0]) : null;
+    return '<div class="entry' + (t ? '' : ' un') + '">' +
+      '<span class="nm">' + esc(g.name) + '</span>' +
+      '<span class="lead"></span>' +
+      '<span class="tb">' + (t ? esc(tableTitle(t)) : 'unseated') + '</span></div>';
+  }).join('');
+}
+function alphaPrintBody(){
+  const guests = state.guests.slice().sort(byName);
+  const seated = guests.filter(g => isSeated(g.id));
+  const meta = guests.length + ' guests · ' + seated.length + ' seated · updated ' + prettyDate();
+  return masthead('Seating directory', meta) +
+    '<div class="directory">' + directoryEntries(guests) + '</div>' +
+    '<div class="colophon">' + esc(BRAND.name) + '</div>';
+}
+function tablePrintBody(){
+  const cards = state.tables.map(t => {
+    const names = [];
+    for (let i=0;i<t.seats;i++){
+      const gid = state.assignments[t.id + '|' + i];
+      if (gid){ const g = guestById(gid); if (g) names.push(g.name); }
+    }
+    names.sort((a,b) => sortKey(a).localeCompare(sortKey(b)));
+    return '<div class="tcard"><div class="th"><h2>' + esc(tableTitle(t)) + '</h2>' +
+      '<span class="cap">' + names.length + ' / ' + t.seats + ' seated</span></div>' +
+      (names.length ? '<ol>' + names.map(n => '<li>' + esc(n) + '</li>').join('') + '</ol>'
+                    : '<div class="empty">No guests yet</div>') + '</div>';
+  }).join('');
+  const un = state.guests.filter(g => !isSeated(g.id)).sort(byName);
+  const seatedCount = state.guests.length - un.length;
+  const meta = state.tables.length + ' tables · ' + seatedCount + ' of ' + state.guests.length + ' seated · updated ' + prettyDate();
+  return masthead('Seating plan', meta) +
+    '<div class="plan">' + cards + '</div>' +
+    (un.length ? '<div class="unseat-block"><h2>Not yet seated · ' + un.length + '</h2>' +
+        '<ul class="plainlist">' + un.map(g => '<li>' + esc(g.name) + '</li>').join('') + '</ul></div>' : '') +
+    '<div class="colophon">' + esc(BRAND.name) + '</div>';
+}
+function exportPDF(kind){
+  if (!state.guests.length){ toast('Add some guests first'); return; }
+  const body = kind === 'alpha' ? alphaPrintBody() : tablePrintBody();
+  const fname = slug() + (kind === 'alpha' ? '-by-name' : '-by-table');
+  const win = window.open('', '_blank');
+  if (!win){ toast('Allow pop-ups so the PDF can open, then choose “Save as PDF”'); return; }
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(fname) + '</title>' +
+    '<link rel="preconnect" href="https://fonts.googleapis.com">' +
+    '<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">' +
+    '<style>' + printCSS() + '</style></head><body><div class="doc">' + body + '</div></body></html>'
+  );
+  win.document.close();
+  const go = () => { try { win.focus(); win.print(); } catch(e){} };
+  if (win.document.fonts && win.document.fonts.ready){
+    win.document.fonts.ready.then(() => setTimeout(go, 200));
+    setTimeout(go, 1500);                         // fallback if fonts never resolve
+  } else setTimeout(go, 600);
+  toast('Opening a print-ready page — choose “Save as PDF”');
+}
+
+$('#btnCsvAlpha').addEventListener('click', () => downloadBlob(csvOfGuests(), slug() + '-guests.csv', 'text/csv'));
+$('#btnCsvTable').addEventListener('click', () => downloadBlob(csvByTable(), slug() + '-by-table.csv', 'text/csv'));
+$('#btnPdfAlpha').addEventListener('click', () => exportPDF('alpha'));
+$('#btnPdfTable').addEventListener('click', () => exportPDF('table'));
+$('#btnPrint').addEventListener('click', () => window.print());
+$('#btnUndo').addEventListener('click', undo);
+$('#btnCouples').addEventListener('click', () => {
+  state.keepCouples = !state.keepCouples;
+  markDirty(); updateStats();
+  toast(state.keepCouples ? 'Couples will be kept together' : 'Couples can now be seated apart');
+});
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 's') return;
+  if ($('#app').classList.contains('hidden')) return;
+  e.preventDefault(); $('#btnSave').click();
+});
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+  const el = document.activeElement;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+  if ($('#app').classList.contains('hidden')) return;
+  e.preventDefault(); undo();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   SAVE — bake the state back into a copy of this file
+   ═══════════════════════════════════════════════════════════ */
+function bakedFile(){
+  const json = JSON.stringify(state).replace(/</g, '\\u003c');
+  return PRISTINE.replace(
+    /<script type="application\/json" id="saved-state">[\s\S]*?<\/script>/,
+    '<script type="application/json" id="saved-state">' + json + '<\/script>'
+  );
+}
+$('#btnSave').addEventListener('click', () => {
+  downloadBlob('<!DOCTYPE html>\n' + bakedFile(), slug() + '.html', 'text/html');
+  markClean();
+  toast('Saved — open that file any time to pick up where you left off');
+});
+$('#btnExport').addEventListener('click', e => {
+  const p = openPop(e.clientX - 150, 62,
+    '<div class="pop-head"><span class="t">Export</span></div>' +
+    '<div class="pop-body">' +
+      '<button class="pop-item" data-a="csv">Guest list as CSV</button>' +
+      '<button class="pop-item" data-a="csvt">Table list as CSV</button>' +
+      '<button class="pop-item" data-a="cards">Place cards to print</button>' +
+      '<button class="pop-item" data-a="update">Update guest list from a new file\u2026</button>' +
+      '<button class="pop-item" data-a="json">Backup file (.json)</button>' +
+      '<button class="pop-item" data-a="load">Open a backup file…</button>' +
+    '</div>');
+  p.addEventListener('click', ev => {
+    const b = ev.target.closest('.pop-item'); if (!b) return;
+    const a = b.dataset.a;
+    if (a === 'csv')  downloadBlob(csvOfGuests(), slug() + '-guests.csv', 'text/csv');
+    if (a === 'csvt') downloadBlob(csvByTable(), slug() + '-by-table.csv', 'text/csv');
+    if (a === 'json') downloadBlob(JSON.stringify(state, null, 2), slug() + '.json', 'application/json');
+    if (a === 'cards') printPlaceCards();
+    if (a === 'update') startMergeImport();
+    if (a === 'load'){
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.json';
+      inp.onchange = async () => {
+        try {
+          const s = JSON.parse(await inp.files[0].text());
+          if (!s.guests || !s.tables) throw new Error('bad');
+          state = migrate(Object.assign({version:1, zoom:1}, s));
+          startApp(); toast('Backup opened');
+        } catch(err){ toast('That file is not a Table Plan backup'); }
+      };
+      inp.click();
+    }
+    closePop();
+  });
+});
+function printPlaceCards(){
+  const cards = [];
+  state.tables.forEach(t => {
+    for (let i=0;i<t.seats;i++){
+      const gid = state.assignments[t.id + '|' + i];
+      if (!gid) continue;
+      const g = guestById(gid); if (!g) continue;
+      cards.push('<div class="pc"><div class="nm">' + esc(g.name) + '</div><div class="tb">' + esc(tableTitle(t)) + '</div></div>');
+    }
+  });
+  if (!cards.length){ toast('Seat some guests first'); return; }
+  const w = window.open('', '_blank');
+  if (!w){ toast('Allow pop-ups to print place cards'); return; }
+  w.document.write(
+    '<!DOCTYPE html><html><head><title>' + esc(state.eventName) + ' — place cards</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">' +
+    '<style>@page{margin:12mm}body{font-family:Fraunces,Georgia,serif;margin:0}' +
+    '.grid{display:grid;grid-template-columns:1fr 1fr;gap:0}' +
+    '.pc{border:1px dashed #bbb;height:63mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8mm;break-inside:avoid}' +
+    '.pc .nm{font-size:20pt;font-weight:600;line-height:1.2}' +
+    '.pc .tb{font-family:"IBM Plex Mono",monospace;font-size:9pt;letter-spacing:.14em;text-transform:uppercase;color:#777;margin-top:6mm}' +
+    '</style></head><body><div class="grid">' + cards.join('') + '</div></body></html>'
+  );
+  w.document.close();
+  setTimeout(() => w.print(), 700);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MERGE — refresh the guest list without losing the seating
+   ═══════════════════════════════════════════════════════════ */
+let mergeMode = false;
+function normName(n){
+  return String(n).toLowerCase()
+    .replace(/^(mr|mrs|ms|miss|dr|rabbi|prof|rev|sir|lady)\.?\s+/,'')
+    .replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
+}
+function startMergeImport(){
+  mergeMode = true; csvRows = null;
+  $('#importErr').classList.add('hidden');
+  $('#app').classList.add('hidden');
+  $('#setup').classList.remove('hidden');
+  $('#mergeBar').classList.remove('hidden');
+  $('#btnReviewGo').textContent = 'Apply the update \u2192';
+  goStep('import');
+  toast('Import the new list \u2014 matching names keep their seats');
+}
+function exitMerge(){
+  mergeMode = false;
+  $('#mergeBar').classList.add('hidden');
+  $('#btnReviewGo').textContent = 'Set up the room \u2192';
+  $('#setup').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+}
+function finishMerge(){
+  snapshot();
+  const incoming = reviewItems.filter(i => i.on);
+  const pool = new Map();
+  state.guests.forEach(g => {
+    const k = normName(g.name);
+    if (!pool.has(k)) pool.set(k, []);
+    pool.get(k).push(g);
+  });
+  const kept = [], added = [];
+  incoming.forEach(i => {
+    const arr = pool.get(normName(i.name));
+    if (arr && arr.length){
+      const g = arr.shift();
+      g.name = i.name;
+      if (i.party) g.party = i.party;
+      kept.push(g);
+    } else {
+      added.push({id: newId('g'), name: i.name, party: i.party || ''});
+    }
+  });
+  let removed = 0;
+  pool.forEach(arr => arr.forEach(g => {
+    const k = seatOfGuest(g.id);
+    if (k) delete state.assignments[k];
+    removed++;
+  }));
+  state.guests = kept.concat(added);
+  exitMerge();
+  renderPlan(); afterChange();
+  toast(kept.length + ' kept their seats \u00b7 ' + added.length + ' new \u00b7 ' + removed + ' removed');
+}
+$('#btnCancelMerge').addEventListener('click', exitMerge);
+
+/* ═══════════════════════════════════════════════════════════
+   BOOT
+   ═══════════════════════════════════════════════════════════ */
+function startApp(){
+  $('#setup').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  $('#eventNameTop').value = state.eventName;
+  if (!state.zoom) state.zoom = 1;
+  renderPlan(); growStage(); renderGuestPanel(); updateStats(); renderLists();
+  setView('plan');
+  markClean();
+}
+$('#eventNameTop').addEventListener('input', e => { state.eventName = e.target.value || 'Untitled event'; markDirty(); });
+
+window.addEventListener('beforeunload', e => {
+  if (!dirty) return;
+  e.preventDefault(); e.returnValue = '';
+});
+
+function resumeModal(saved, label, onYes){
+  const root = $('#modalRoot');
+  root.innerHTML =
+    '<div class="modal-bg"><div class="modal">' +
+      '<h2>Pick up where you left off?</h2>' +
+      '<p>' + label + ' — ' + saved.guests.length + ' guests, ' + saved.tables.length + ' tables.</p>' +
+      '<div style="display:flex;gap:10px;justify-content:flex-end">' +
+        '<button class="btn ghost" id="mNo">Start fresh</button>' +
+        '<button class="btn" id="mYes">Open it</button>' +
+      '</div>' +
+    '</div></div>';
+  $('#mYes').onclick = () => { root.innerHTML = ''; onYes(); };
+  $('#mNo').onclick  = () => { root.innerHTML = ''; };
+}
+
+(function boot(){
+  extraStyles();
+  applyBrand();
+  let baked = null;
+  try {
+    const raw = $('#saved-state').textContent.trim();
+    if (raw && raw !== 'null') baked = JSON.parse(raw);
+  } catch(err){}
+
+  if (baked && baked.guests){
+    state = migrate(Object.assign({version:1, zoom:1}, baked));
+    startApp();
+    return;
+  }
+  goStep('import');
+  const stash = readStash();
+  if (stash && stash.guests && stash.guests.length){
+    resumeModal(stash, 'There is an unsaved chart in this browser', () => {
+      state = migrate(Object.assign({version:1, zoom:1}, stash));
+      startApp();
+    });
+  }
+})();
+</script>
+</body>
+</html>
